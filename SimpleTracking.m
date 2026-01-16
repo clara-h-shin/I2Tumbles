@@ -22,7 +22,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 bpfiltsize=         20;                     % bpfiltsize        [A]
-hthreshopt=         '2. Std. Thresh.';      % Threshold Option  [B]
+hthreshopt=         2;                      % Threshold Option  [B] 2. Std. Thresh.
 defaultthresh2=     4.0;                    % thr (>1)          [C]
 
 stdevMinThreshold=  2;                      % Cull: Std. Min. Threshold
@@ -30,9 +30,8 @@ numFrames=          200;                    % Cull: # of Video Image Frames
 secondVideo=        10;                     % Cull: Length of Video (sec)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%  Neighborhood Parameters
+% Neighborhood Parameters
 processopt=         'spatialfilter';        % Process Option
-bpfiltsize=         bpfiltsize;             % bpfiltsize
 nsize=              bpfiltsize;             % nsize (Same as bpfiltsize)
 lockobjsize=        true;                   % Lock
 
@@ -40,9 +39,7 @@ grobjsize=          7;                      % grobjsiz
 graddiroptval=      1;         % dir. 1: Both dir, 2. Positive, 3. Negative
 defaultgrthresh=    0.99;                   % grthresh
 
-hthreshopt=         hthreshopt;             % Threshold Option
 defaultthresh1=     0.9900;                 % thr (0-1)
-defaultthresh2=     defaultthresh2;         % thr (>1)
 defaultthresh3=     3;                      % N (>=1)
 
 % Display Processed Images
@@ -240,7 +237,7 @@ islinkdone = false;                     % Link Objs -> Tracks - Done
 
 % Track a single frame (find objects)
 tmpobj = fo5_rp(A, processopt, processparam, thresh, fitstr, ...
-    h1pernhood, [], lsqoptions);
+            h1pernhood, [], lsqoptions);
 tmpobj(5,:) = currframe-frmin+1;
 objs = [objs tmpobj];
 trackthisdone(currframe-frmin+1) = true;  % note that tracking has been done

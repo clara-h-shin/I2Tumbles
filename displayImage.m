@@ -12,21 +12,15 @@ if exist('im1', 'var')
 end
 
 if showthreshprocess
-    % im1 = imshow(threshprocessA, [], 'Parent', axeshandle);
     im1 = imshow(threshprocessA, []);
 
 elseif showprocess
-    % im1 = imshow(processedA, [], 'Parent', axeshandle);
     im1 = imshow(processedA, []);
 
 else
-    % im1 = imshow(A, [], 'Parent', axeshandle);
     im1 = imshow(A, []);
 
 end
-
-% set(axeshandle, 'Visible', 'off');
-% colormap('gray');
 
 if ~isempty(displayRange)
     % Adjust display range
