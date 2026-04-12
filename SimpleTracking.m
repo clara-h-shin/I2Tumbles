@@ -1,5 +1,5 @@
 
-% SimpleTracking - Version 1.1
+% SimpleTracking - Version 1.8
 
 % This script was written to utilize TrackingGUI without the GUI and
 % pre-set settings that are frequently used in Baylink Lab. 
@@ -11,7 +11,9 @@
 % www.baylink-lab.com
 
 % Version 1.0 Written Fall 2025
-% Last updated: 1/15/2026
+% Version 2.0 Ongoing Spring 2026
+
+% Last updated: 4/11/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -28,6 +30,7 @@ defaultthresh2=     4.0;                    % thr (>1)          [C]
 stdevMinThreshold=  2;                      % Cull: Std. Min. Threshold
 numFrames=          200;                    % Cull: # of Video Image Frames
 secondVideo=        10;                     % Cull: Length of Video (sec)
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Neighborhood Parameters
