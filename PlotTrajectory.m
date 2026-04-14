@@ -14,7 +14,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bacteria_idx = 4;           % column index of the bacterium to plot (integer)
+bacteria_idx = 1;           % column index of the bacterium to plot (integer)
 
 %% =========================================================
 %  Load metadata from SimpleTrackingoutput.mat
@@ -60,7 +60,6 @@ w_filt     = w_filt_mat{bacteria_idx};
 w_filt_off = w_filt_off_mat{bacteria_idx};
 
 % Per-bacterium summary metrics
-bact_num_runs     = num_runs(bacteria_idx);
 bact_avg_vel      = avg_vel(bacteria_idx);    % average run speed (µm/s) from Cell_Track
 bact_avg_tumble_t = avg_tumble_t(bacteria_idx);
 bact_avg_run_t    = avg_run_t(bacteria_idx);
