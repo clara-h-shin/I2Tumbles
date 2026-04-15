@@ -9,7 +9,7 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
-% Last updated: 4/11/2026
+% Last updated: 4/14/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -20,8 +20,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-numFrames=          200;                    % # of Video Image Frames
-secondVideo=        10;                     % Length of Video (sec)
+secondVideo=        30;                     % Length of Video (sec)
 
 depth_speed_ratio=  0.7;                    % Ratio of Delta v (Depth) and minimum v ratio
 v_min_threshold=    0.3;                    % vmin threshold to be included in tumble count
@@ -33,19 +32,21 @@ longRunThreshold=   6;                      % frames; runs of >= this length cou
 minTrackLength=     sg_window + 2;          % Minimum track length to attempt analysis (must be > sg_window)
 w_offset=           50;                     % rad/s offset added to w_filt for overlay plot
 
-time_int = secondVideo / numFrames;
-
 %% =========================================================
 %  Load simpletracking output data
 %  =========================================================
 
 data      = load('SimpleTrackingoutput.mat');
-objs_link = data.objs_link;          % 8 x N matrix
+objs_link = data.objs_link;
 
-x_raw     = objs_link(1, :)';        % x coordinates
-y_raw     = objs_link(2, :)';        % y coordinates
-frame_raw = objs_link(5, :)';        % frame numbers  (1-based)
-id_raw    = objs_link(6, :)';        % bacterium track IDs
+numFrames = double(data.Nframes);
+
+time_int = secondVideo / numFrames;
+
+x_raw     = objs_link(1, :)';
+y_raw     = objs_link(2, :)';
+frame_raw = objs_link(5, :)';
+id_raw    = objs_link(6, :)';
 
 track_ids  = unique(id_raw);
 Nbacteria  = length(track_ids);
@@ -55,7 +56,7 @@ ymat = NaN(numFrames, Nbacteria);
 
 for b = 1 : Nbacteria
     mask          = (id_raw == track_ids(b));
-    frs           = frame_raw(mask);          % 1-based frame indices
+    frs           = frame_raw(mask);
     xmat(frs, b)  = x_raw(mask);
     ymat(frs, b)  = y_raw(mask);
 end
@@ -86,7 +87,7 @@ avg_vel           = NaN(1, Nbacteria);   % avg translational speed during runs (
 avg_v_tumble      = NaN(1, Nbacteria);   % avg translational speed during tumbles (µm/s)
 avg_w_run         = NaN(1, Nbacteria);   % avg angular velocity during runs (rad/s)
 avg_w_tumble      = NaN(1, Nbacteria);   % avg angular velocity during tumbles (rad/s)
-track_duration_s  = NaN(1, Nbacteria);  % total track duration in seconds
+track_duration_s  = NaN(1, Nbacteria);   % total track duration in seconds
 
 %% =========================================================
 %  Bacterium metrics (translational velocity and angular velocity)
@@ -540,109 +541,64 @@ fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)', pop_mean_vr, po
 fprintf('=====================================================================\n\n');
 
 % ---- Histogram panels ----
-pad_frac  = 0.05;
-ypad_frac = 0.10;
-
-    function plot_hist(data, nbins, mean_val, xlbl, ttl, dodgerblue, avgline, pad_frac, ypad_frac)
-        h = histogram(data, nbins, 'FaceColor',dodgerblue, 'EdgeColor','k');
-        hold on;
-        xline(mean_val, '--', 'Color',avgline, 'LineWidth',1.5, ...
-            'Label',sprintf('Mean=%.2f', mean_val), ...
-            'LabelOrientation','horizontal', 'FontSize',10);
-        hold off;
-        rng = max(data) - min(data);
-        if rng == 0, rng = 1; end
-        xlim([min(data) - rng*pad_frac,  max(data) + rng*pad_frac]);
-        ylim([0, max(h.Values) * (1 + ypad_frac)]);
-        xlabel(xlbl,       'FontSize',14);
-        ylabel('Frequency','FontSize',14);
-        title(ttl,         'FontSize',14);
-        set(gca, 'FontSize',12, 'TickDir','in', 'Box','on');
-    end
-
 figure('Units','inches', 'Position',[1 1 15 8], 'Color','white');
 
-subplot(2,3,1);
-h1 = histogram(nt_plot,'BinWidth',1,'FaceColor',dodgerblue,'EdgeColor','k');
-hold on;
-xline(pop_mean_nt,'--','Color',avgline,'LineWidth',1.5,...
-    'Label',sprintf('Mean=%.2f',pop_mean_nt),'LabelOrientation','horizontal','FontSize',10);
-hold off;
-xlim([min(nt_plot)-1, max(nt_plot)+1]);
-ylim([0, max(h1.Values)*(1+ypad_frac)]);
-xlabel('Number of Tumbles','FontSize',14); ylabel('Frequency','FontSize',14);
-title('Tumble Count','FontSize',14);
-set(gca,'FontSize',12,'TickDir','in','Box','on');
-
-subplot(2,3,2);
-h2 = histogram(att_plot,15,'FaceColor',dodgerblue,'EdgeColor','k');
-hold on;
-xline(pop_mean_att,'--','Color',avgline,'LineWidth',1.5,...
-    'Label',sprintf('Mean=%.2f',pop_mean_att),'LabelOrientation','horizontal','FontSize',10);
-hold off;
-rng2 = max(att_plot)-min(att_plot); if rng2==0, rng2=1; end
-xlim([min(att_plot)-rng2*pad_frac, max(att_plot)+rng2*pad_frac]);
-ylim([0, max(h2.Values)*(1+ypad_frac)]);
-xlabel('Tumble Duration (s)','FontSize',14); ylabel('Frequency','FontSize',14);
-title('Tumble Duration','FontSize',14);
-set(gca,'FontSize',12,'TickDir','in','Box','on');
-
-subplot(2,3,3);
-h3 = histogram(art_plot,15,'FaceColor',dodgerblue,'EdgeColor','k');
-hold on;
-xline(pop_mean_art,'--','Color',avgline,'LineWidth',1.5,...
-    'Label',sprintf('Mean=%.2f',pop_mean_art),'LabelOrientation','horizontal','FontSize',10);
-hold off;
-rng3 = max(art_plot)-min(art_plot); if rng3==0, rng3=1; end
-xlim([min(art_plot)-rng3*pad_frac, max(art_plot)+rng3*pad_frac]);
-ylim([0, max(h3.Values)*(1+ypad_frac)]);
-xlabel('Run Duration (s)','FontSize',14); ylabel('Frequency','FontSize',14);
-title('Run Duration','FontSize',14);
-set(gca,'FontSize',12,'TickDir','in','Box','on');
-
-subplot(2,3,4);
-h4 = histogram(aa_plot,15,'FaceColor',dodgerblue,'EdgeColor','k');
-hold on;
-xline(pop_mean_aa,'--','Color',avgline,'LineWidth',1.5,...
-    'Label',sprintf('Mean=%.2f',pop_mean_aa),'LabelOrientation','horizontal','FontSize',10);
-hold off;
-rng4 = max(aa_plot)-min(aa_plot); if rng4==0, rng4=1; end
-xlim([min(aa_plot)-rng4*pad_frac, max(aa_plot)+rng4*pad_frac]);
-ylim([0, max(h4.Values)*(1+ypad_frac)]);
-xlabel('Tumble Angle (deg)','FontSize',14); ylabel('Frequency','FontSize',14);
-title('Tumble Angle','FontSize',14);
-set(gca,'FontSize',12,'TickDir','in','Box','on');
-
-subplot(2,3,5);
-h5 = histogram(vt_plot,15,'FaceColor',dodgerblue,'EdgeColor','k');
-hold on;
-xline(pop_mean_vt,'--','Color',avgline,'LineWidth',1.5,...
-    'Label',sprintf('Mean=%.2f',pop_mean_vt),'LabelOrientation','horizontal','FontSize',10);
-hold off;
-rng5 = max(vt_plot)-min(vt_plot); if rng5==0, rng5=1; end
-xlim([min(vt_plot)-rng5*pad_frac, max(vt_plot)+rng5*pad_frac]);
-ylim([0, max(h5.Values)*(1+ypad_frac)]);
-xlabel('Tumble Speed (µm/s)','FontSize',14); ylabel('Frequency','FontSize',14);
-title('Tumble Linear Speed','FontSize',14);
-set(gca,'FontSize',12,'TickDir','in','Box','on');
-
-subplot(2,3,6);
-h6 = histogram(vr_plot,15,'FaceColor',dodgerblue,'EdgeColor','k');
-hold on;
-xline(pop_mean_vr,'--','Color',avgline,'LineWidth',1.5,...
-    'Label',sprintf('Mean=%.2f',pop_mean_vr),'LabelOrientation','horizontal','FontSize',10);
-hold off;
-rng6 = max(vr_plot)-min(vr_plot); if rng6==0, rng6=1; end
-xlim([min(vr_plot)-rng6*pad_frac, max(vr_plot)+rng6*pad_frac]);
-ylim([0, max(h6.Values)*(1+ypad_frac)]);
-xlabel('Run Speed (µm/s)','FontSize',14); ylabel('Frequency','FontSize',14);
-title('Run Linear Speed','FontSize',14);
-set(gca,'FontSize',12,'TickDir','in','Box','on');
+subplot(2,3,1); smart_histogram(nt_plot,  pop_mean_nt,  'Number of Tumbles',    'Tumble Count',        dodgerblue, avgline, true);
+subplot(2,3,2); smart_histogram(att_plot, pop_mean_att, 'Tumble Duration (s)',   'Tumble Duration',     dodgerblue, avgline, false);
+subplot(2,3,3); smart_histogram(art_plot, pop_mean_art, 'Run Duration (s)',      'Run Duration',        dodgerblue, avgline, false);
+subplot(2,3,4); smart_histogram(aa_plot,  pop_mean_aa,  'Tumble Angle (deg)',    'Tumble Angle',        dodgerblue, avgline, false);
+subplot(2,3,5); smart_histogram(vt_plot,  pop_mean_vt,  'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
+subplot(2,3,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
 
 
 %% =========================================================
 %  Helper functions
 %  =========================================================
+
+function smart_histogram(data, mean_val, xlbl, ttl, dodgerblue, avgline, is_integer)
+% Plots a histogram with auto-selected bin width, padded axes, and a mean line.
+
+    if isempty(data) || all(isnan(data))
+        title(ttl, 'FontSize',14);
+        xlabel(xlbl, 'FontSize',14);
+        return;
+    end
+
+    data = data(~isnan(data));
+    data_min = min(data);
+    data_max = max(data);
+    data_range = data_max - data_min;
+
+    % Guard: all values identical
+    if data_range == 0
+        data_range = max(1, abs(data_min));
+    end
+
+    if is_integer
+        bw = max(1, round(data_range / 20));
+        h  = histogram(data, 'BinWidth',bw, 'FaceColor',dodgerblue, 'EdgeColor','k');
+    else
+        h  = histogram(data, 15, 'FaceColor',dodgerblue, 'EdgeColor','k');
+    end
+
+    hold on;
+    xline(mean_val, '--', 'Color',avgline, 'LineWidth',1.5, ...
+        'Label', sprintf('Mean=%.2f', mean_val), ...
+        'LabelOrientation','horizontal', 'FontSize',10);
+    hold off;
+
+    x_pad = data_range * 0.05;
+    xlim([data_min - x_pad,  data_max + x_pad]);
+
+    if ~isempty(h.Values) && max(h.Values) > 0
+        ylim([0, max(h.Values) * 1.10]);
+    end
+
+    xlabel(xlbl,       'FontSize',14);
+    ylabel('Frequency','FontSize',14);
+    title(ttl,         'FontSize',14);
+    set(gca, 'FontSize',12, 'TickDir','in', 'Box','on');
+end
 
 function val = clip(x)
 % Clamp x to [-1, 1] to guard against floating-point errors in acos

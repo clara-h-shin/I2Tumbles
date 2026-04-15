@@ -3,7 +3,7 @@
 % from SimpleTrackingoutput.mat and pre-computed variables from
 % CellTrackAnalysis.m.
 
-% Last updated: 4/11/2026
+% Last updated: 4/14/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -20,17 +20,16 @@ bacteria_idx = 1;           % column index of the bacterium to plot (integer)
 %  Load metadata from SimpleTrackingoutput.mat
 %  =========================================================
 
-mat_data=       load('SimpleTrackingoutput.mat');   % Load the data calculated from CellTrackAnalysis.m
-secondVideo=    10;                                 % video duration in seconds (default)
-Nframes=        double(200);                        % total number of frames
-time_int=       secondVideo / Nframes;              % time interval
+secondVideo=    30;                                 % video duration in seconds
 
+raw_ma=         load('SimpleTrackingoutput.mat', 'Nframes');
+Nframes=        double(raw_mat.Nframes);
+time_int=       secondVideo / Nframes;               % time interval
+mat_data=       []; 
 
 %% =========================================================
 %  Extract single-bacterium data from workspace variables
 %  =========================================================
-% These cell/matrix variables must already be in the workspace from running
-% Cell_Track_Analysis_Algorithm.m beforehand.
 
 % Raw x/y for this bacterium (may contain NaN for missing frames)
 x_raw = xmat(:, bacteria_idx);
@@ -44,23 +43,19 @@ frame      = valid_rows;
 x          = x_raw(valid_rows);
 y          = y_raw(valid_rows);
 
-% t_x and t_y are left empty as requested
 t_x = [];
 t_y = [];
 
-% Tumble vertex coordinates — one (x,y) point per tumble
 t_x_v = tumble_x_mat{bacteria_idx};
 t_y_v = tumble_y_mat{bacteria_idx};
 
-% Velocity arrays computed by Cell_Track_Analysis_Algorithm.m
 v          = v_mat{bacteria_idx};
 w          = w_mat{bacteria_idx};
 v_filt     = v_filt_mat{bacteria_idx};
 w_filt     = w_filt_mat{bacteria_idx};
 w_filt_off = w_filt_off_mat{bacteria_idx};
 
-% Per-bacterium summary metrics
-bact_avg_vel      = avg_vel(bacteria_idx);    % average run speed (µm/s) from Cell_Track
+bact_avg_vel      = avg_vel(bacteria_idx);    % average run speed (µm/s)
 bact_avg_tumble_t = avg_tumble_t(bacteria_idx);
 bact_avg_run_t    = avg_run_t(bacteria_idx);
 bact_avg_angle    = avg_angle(bacteria_idx);
@@ -111,7 +106,7 @@ lightcoral = [1.00, 0.63, 0.63];
 darkred    = [0.55, 0.00, 0.00];
 grey       = [0.50, 0.50, 0.50];
 
-t_lines = t_tumble_mat{bacteria_idx};
+t_lines = t_tumble_mat{bacteria_idx} - 1;
 
 lbl_fs  = 14;
 tick_fs = 13;
@@ -124,6 +119,7 @@ plot(frames, v,      'Color',grey, 'LineWidth',1); hold on;
 plot(frames, v_filt, 'k-',         'LineWidth',1);
 xlim([0 n_frames]);
 v_top = max(max(v), max(v_filt)) * 1.1;
+if v_top == 0 || isnan(v_top), v_top = 1; end   % guard: flat/empty signal
 ylim([0, v_top]);
 apply_yticks(ax1, v_top);
 yl1 = ylabel('Velocity (\mum/s)', 'FontSize',lbl_fs);
@@ -137,6 +133,7 @@ plot(frames, w_filt, 'Color',darkred,    'LineWidth',1);
 xlim([0 n_frames]);
 
 w_top = max(max(w), max(w_filt)) * 1.1;
+if w_top == 0 || isnan(w_top), w_top = 1; end   % guard: flat/empty signal
 ylim([0, w_top]);
 apply_yticks(ax2, w_top);
 yl2 = ylabel('Angular Velocity (s^{-1})', 'FontSize',lbl_fs);
@@ -196,6 +193,8 @@ yl3L.Position(1) = min_x;
 %  =========================================================
 
 function apply_yticks(ax, top_val)
+    % Guard against degenerate inputs
+    if isnan(top_val) || top_val <= 0, top_val = 1; end
     if top_val > 2
         fmt = @(v) sprintf('%d', round(v));
     elseif top_val > 0.15
