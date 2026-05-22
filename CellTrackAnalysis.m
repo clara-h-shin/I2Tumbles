@@ -50,7 +50,7 @@ min_tumble_speed  = 3.0;
 %  Load simpletracking output data
 %  =========================================================
 
-data      = load('Indole_14.mat');
+data      = load('SimpleTrackingoutput.mat');
 objs_link = data.objs_link;
 
 numFrames = double(data.Nframes);
@@ -580,7 +580,7 @@ end   % end bacterium loop
 
 outFile = 'CellTrackAnalysis_results.xlsx';
 
-% Delete existing file to avoid stale sheets (matches migration_v3.m pattern)
+% Delete existing file 
 if exist(outFile, 'file')
     delete(outFile);
 end

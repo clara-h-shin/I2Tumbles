@@ -14,7 +14,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bacteria_idx = 54;           % column index of the bacterium to plot (integer)
+bacteria_idx = 0;           % column index of the bacterium to plot (integer)
                             % bacteria_idx = 0 will display random 20
                             % bacteria tracks
 
@@ -24,7 +24,7 @@ bacteria_idx = 54;           % column index of the bacterium to plot (integer)
 
 secondVideo=    10;                                 % video duration in seconds
 
-raw_mat=        load('Indole_14.mat', 'Nframes');
+raw_mat=        load('SimpleTrackingoutput.mat', 'Nframes');
 
 Nframes=        double(raw_mat.Nframes);
 time_int=       secondVideo / Nframes;               % time interval
