@@ -9,7 +9,7 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
-% Last updated: 4/14/2026
+% Last updated: 5/22/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -20,28 +20,55 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-secondVideo=        30;                     % Length of Video (sec)
+secondVideo=        10;                     % Length of Video (sec)
 
-depth_speed_ratio=  0.7;                    % Ratio of Delta v (Depth) and minimum v ratio
-v_min_threshold=    0.3;                    % vmin threshold to be included in tumble count
+% --- Pixel-to-micron conversion ---
+convert_to_um =     true;                   
+px_to_um =          0.33;                   % µm per pixel
 
-sg_window=          5;                      % Savitzky-Golay filter parameter. Must be odd
-sg_poly=            2;                      % Savitzky-Golay filter parameter for smoothing velocities
+% --- Savitzky-Golay smoothing ---
+fps_scale_sg_window= true;                  % true = auto-scale | false = use fixed value
+sg_window=          5;                      % Odd numbers only. Used when fps_scale_sg_window = false
+sg_poly=            2;                      % polynomial order (keep at 2)
 
-longRunThreshold=   6;                      % frames; runs of >= this length counted as "long"
-minTrackLength=     sg_window + 2;          % Minimum track length to attempt analysis (must be > sg_window)
+longRunThreshold=   6;                      % frames; runs >= this length are "long"
+minTrackLength=     sg_window + 2;          % minimum track length; updated below if scaling
 w_offset=           50;                     % rad/s offset added to w_filt for overlay plot
+
+% --- Tumble detection thresholds ---
+depth_speed_ratio=  0.9;                    % Value: 0.5 - 0.999 (The higher, more conservative)
+v_min_threshold=    0.3;                    % tumble frame width threshold
+
+% --- Angular speed confirmation ---
+use_angular_confirmation = true;            
+w_confirm_factor  = 0.20;            
+
+% --- Minimum speed at tumble dip ---
+min_tumble_speed  = 3.0;                    
 
 %% =========================================================
 %  Load simpletracking output data
 %  =========================================================
 
-data      = load('SimpleTrackingoutput.mat');
+data      = load('Indole_14.mat');
 objs_link = data.objs_link;
 
 numFrames = double(data.Nframes);
 
 time_int = secondVideo / numFrames;
+
+% --- Scale sg_window to match the paper's ~200 ms smoothing window ---
+if fps_scale_sg_window
+    fps_data    = numFrames / secondVideo;
+    fps_paper   = 25;
+    paper_window_ms = 5 / fps_paper * 1000;           % = 200 ms
+    equiv_frames    = round(paper_window_ms / 1000 * fps_data);
+    if mod(equiv_frames, 2) == 0, equiv_frames = equiv_frames + 1; end  % must be odd
+    sg_window   = max(5, equiv_frames);                % never go below paper's value
+    fprintf('FPS=%.1f: sg_window auto-scaled to %d (%.0f ms window)\n', ...
+        fps_data, sg_window, sg_window / fps_data * 1000);
+end
+minTrackLength = sg_window + 2;
 
 x_raw     = objs_link(1, :)';
 y_raw     = objs_link(2, :)';
@@ -107,6 +134,12 @@ for b = 1 : Nbacteria
     x_v = x_col(valid);
     y_v = y_col(valid);
 
+    % ---- Pixel-to-micron conversion (applied before velocity — cascades to all outputs) ----
+    if convert_to_um
+        x_v = x_v * px_to_um;
+        y_v = y_v * px_to_um;
+    end
+
     % ---- Velocities ----
     vx = diff(x_v) / time_int;
     vy = diff(y_v) / time_int;
@@ -167,80 +200,115 @@ for b = 1 : Nbacteria
     v_tumble = [];  t_tumble = [];
     v_min_used = [];
 
+    % NOTE: delta_v and v_min_used are appended in the SAME loop iteration
+    % as v_tumble and t_tumble, so all four arrays are always the same length.
+    % This is required for the angular confirmation filter below to work correctly.
+
     % ---- Case 1: equal counts, min comes first ----
     if n_min == n_max && min_idx(1) < max_idx(1)
+        v_min_cand = v_min_all(2:end);
         for i = 1 : n_min-1
-            delta_v1(end+1) = v_max_all(i+1) - v_min_all(i+1);
-            delta_v2(end+1) = v_max_all(i)   - v_min_all(i+1);
-        end
-        v_min_used = v_min_all(2:end);
-        for i = 1 : length(delta_v1)
-            delta_v(end+1) = max(delta_v1(i), delta_v2(i));
-        end
-        v_depth_speed_ratio = delta_v ./ v_min_used';
-        for i = 1 : length(v_depth_speed_ratio)
-            if v_depth_speed_ratio(i) > depth_speed_ratio
-                v_tumble(end+1) = v_min_used(i);
-                t_tumble(end+1) = min_idx(i+1);
+            dv = max(v_max_all(i+1) - v_min_cand(i), v_max_all(i) - v_min_cand(i));
+            if dv / v_min_cand(i) > depth_speed_ratio
+                v_tumble(end+1)   = v_min_cand(i);
+                t_tumble(end+1)   = min_idx(i+1);
+                delta_v(end+1)    = dv;
+                v_min_used(end+1) = v_min_cand(i);
             end
         end
 
     % ---- Case 2: equal counts, max comes first ----
     elseif n_min == n_max && min_idx(1) > max_idx(1)
+        v_min_cand = v_min_all(1:end-1);
         for i = 1 : n_min-1
-            delta_v1(end+1) = v_max_all(i+1) - v_min_all(i);
-            delta_v2(end+1) = v_max_all(i)   - v_min_all(i);
-        end
-        v_min_used = v_min_all(1:end-1);
-        for i = 1 : length(delta_v1)
-            delta_v(end+1) = max(delta_v1(i), delta_v2(i));
-        end
-        v_depth_speed_ratio = delta_v ./ v_min_used';
-        for i = 1 : length(v_depth_speed_ratio)
-            if v_depth_speed_ratio(i) > depth_speed_ratio
-                v_tumble(end+1) = v_min_used(i);
-                t_tumble(end+1) = min_idx(i);
+            dv = max(v_max_all(i+1) - v_min_cand(i), v_max_all(i) - v_min_cand(i));
+            if dv / v_min_cand(i) > depth_speed_ratio
+                v_tumble(end+1)   = v_min_cand(i);
+                t_tumble(end+1)   = min_idx(i);
+                delta_v(end+1)    = dv;
+                v_min_used(end+1) = v_min_cand(i);
             end
         end
 
     % ---- Case 3: more minima than maxima ----
     elseif n_min > n_max
+        v_min_cand = v_min_all(2:end-1);
         for i = 1 : n_min-2
-            delta_v1(end+1) = v_max_all(i+1) - v_min_all(i+1);
-            delta_v2(end+1) = v_max_all(i)   - v_min_all(i+1);
-        end
-        v_min_used = v_min_all(2:end-1);
-        for i = 1 : length(delta_v1)
-            delta_v(end+1) = max(delta_v1(i), delta_v2(i));
-        end
-        v_depth_speed_ratio = delta_v ./ v_min_used';
-        for i = 1 : length(v_depth_speed_ratio)
-            if v_depth_speed_ratio(i) > depth_speed_ratio
-                v_tumble(end+1) = v_min_used(i);
-                t_tumble(end+1) = min_idx(i+1);
+            dv = max(v_max_all(i+1) - v_min_cand(i), v_max_all(i) - v_min_cand(i));
+            if dv / v_min_cand(i) > depth_speed_ratio
+                v_tumble(end+1)   = v_min_cand(i);
+                t_tumble(end+1)   = min_idx(i+1);
+                delta_v(end+1)    = dv;
+                v_min_used(end+1) = v_min_cand(i);
             end
         end
 
     % ---- Case 4: more maxima than minima ----
     elseif n_min < n_max
+        v_min_cand = v_min_all;
         for i = 1 : n_min
-            delta_v1(end+1) = v_max_all(i+1) - v_min_all(i);
-            delta_v2(end+1) = v_max_all(i)   - v_min_all(i);
-        end
-        v_min_used = v_min_all;
-        for i = 1 : length(delta_v1)
-            delta_v(end+1) = max(delta_v1(i), delta_v2(i));
-        end
-        v_depth_speed_ratio = delta_v ./ v_min_used';
-        for i = 1 : length(v_depth_speed_ratio)
-            if abs(v_depth_speed_ratio(i)) > depth_speed_ratio
-                v_tumble(end+1) = v_min_used(i);
-                t_tumble(end+1) = min_idx(i);
+            dv = max(v_max_all(i+1) - v_min_cand(i), v_max_all(i) - v_min_cand(i));
+            if abs(dv / v_min_cand(i)) > depth_speed_ratio
+                v_tumble(end+1)   = v_min_cand(i);
+                t_tumble(end+1)   = min_idx(i);
+                delta_v(end+1)    = dv;
+                v_min_used(end+1) = v_min_cand(i);
             end
         end
     end
 
     n_tumble_detected = length(v_tumble);
+
+    if n_tumble_detected == 0
+        num_tumbles(b) = 0;
+        continue
+    end
+
+    % ----------------------------------------------------------------
+    %  ANGULAR SPEED CONFIRMATION  (Paper Appendix B, Criterion 2)
+    %  Requires angular speed at the tumble frame (±1) to exceed the
+    %  track-mean angular speed by w_confirm_factor (paper value: 0.20).
+    %  All four arrays — v_tumble, t_tumble, delta_v, v_min_used — are
+    %  the same length and are trimmed together with the same keep mask.
+    % ----------------------------------------------------------------
+    if use_angular_confirmation
+        w_baseline  = mean(sg_w, 'omitnan');
+        w_threshold = w_baseline * (1 + w_confirm_factor);
+        keep = false(1, n_tumble_detected);
+        for i = 1 : n_tumble_detected
+            check = t_tumble(i) + (-1:1);
+            check = check(check >= 1 & check <= N_sg);
+            if any(sg_w(check) >= w_threshold)
+                keep(i) = true;
+            end
+        end
+        v_tumble          = v_tumble(keep);
+        t_tumble          = t_tumble(keep);
+        delta_v           = delta_v(keep);
+        v_min_used        = v_min_used(keep);
+        n_tumble_detected = length(v_tumble);
+    end
+
+    if n_tumble_detected == 0
+        num_tumbles(b) = 0;
+        continue
+    end
+
+    % ----------------------------------------------------------------
+    %  MINIMUM SPEED GATE
+    %  Reject tumble candidates where the speed at the dip is already
+    %  near zero. These arise when the bacterium stops moving (wall,
+    %  focal-plane exit) and only angular noise remains. A real tumble
+    %  must start from an active run, so v_min must exceed the threshold.
+    % ----------------------------------------------------------------
+    if min_tumble_speed > 0
+        speed_keep        = v_min_used > min_tumble_speed;
+        v_tumble          = v_tumble(speed_keep);
+        t_tumble          = t_tumble(speed_keep);
+        delta_v           = delta_v(speed_keep);
+        v_min_used        = v_min_used(speed_keep);
+        n_tumble_detected = length(v_tumble);
+    end
 
     if n_tumble_detected == 0
         num_tumbles(b) = 0;
@@ -330,7 +398,9 @@ for b = 1 : Nbacteria
     adj_max = sort(adj_max);
 
     if length(adj_max) ~= 2 * n_tumble_detected
-        num_tumbles(b) = n_tumble_detected;
+        num_tumbles(b)    = n_tumble_detected;
+        tumble_x_mat{b}   = [];
+        tumble_y_mat{b}   = [];
         continue
     end
 
@@ -392,7 +462,14 @@ for b = 1 : Nbacteria
     end
 
     if isempty(run_time)
-        num_tumbles(b) = n_tumble_detected;
+        % Run timing can't be measured, but the tumble itself is valid.
+        % Store the tumble position so blue dots still appear on the plot.
+        num_tumbles(b)        = n_tumble_detected;
+        tumble_frames_mat{b}  = tumble_frames;
+        t_tumble_mat{b}       = t_tumble;
+        valid_tt = t_tumble(t_tumble >= 1 & t_tumble <= length(x_out));
+        tumble_x_mat{b}       = x_out(valid_tt);
+        tumble_y_mat{b}       = y_out(valid_tt);
         continue
     end
 
@@ -498,6 +575,101 @@ for b = 1 : Nbacteria
 end   % end bacterium loop
 
 %% =========================================================
+%  Export results to Excel
+%  =========================================================
+
+outFile = 'CellTrackAnalysis_results.xlsx';
+
+% Delete existing file to avoid stale sheets (matches migration_v3.m pattern)
+if exist(outFile, 'file')
+    delete(outFile);
+end
+
+% ---- Build per-track table ----
+% MeanRunDuration_s: if a track had 0 tumbles, avg_run_t is NaN (no run
+% segments were measured). In that case the whole track is a single run,
+% so use the full track duration instead — matches the Excel IF formula
+% =IF(TumbleCount=0, TrackDuration_s, MeanRunDuration_s).
+mean_run_dur = avg_run_t(:)';
+zero_tumble  = (~isnan(num_tumbles)) & (num_tumbles == 0);
+mean_run_dur(zero_tumble) = track_duration_s(zero_tumble);
+
+% TumbleFrequency_per_s: tumbles per second of valid track time
+tumble_freq = nan(1, Nbacteria);
+valid_dur   = track_duration_s > 0 & ~isnan(track_duration_s);
+tumble_freq(valid_dur) = num_tumbles(valid_dur) ./ track_duration_s(valid_dur);
+
+T_PerTrack = table( ...
+    (1:Nbacteria)', ...
+    num_tumbles(:), ...
+    tumble_freq(:), ...
+    track_duration_s(:), ...
+    avg_tumble_t(:), ...
+    mean_run_dur(:), ...
+    avg_angle(:), ...
+    avg_vel(:), ...
+    avg_v_tumble(:), ...
+    avg_w_run(:), ...
+    avg_w_tumble(:), ...
+    'VariableNames', { ...
+        'TrackID', ...
+        'TumbleCount', ...
+        'TumbleFrequency_per_s', ...
+        'TrackDuration_s', ...
+        'MeanTumbleDuration_s', ...
+        'MeanRunDuration_s', ...
+        'MeanTumbleAngle_deg', ...
+        'MeanRunSpeed_um_per_s', ...
+        'MeanTumbleSpeed_um_per_s', ...
+        'MeanAngularVel_run_rad_per_s', ...
+        'MeanAngularVel_tumble_rad_per_s' ...
+    });
+
+% ---- Build metadata table ----
+% Stores all algorithm parameters so results are fully reproducible.
+% Column names match migration_v3.m where equivalent parameters exist;
+% CellTrackAnalysis-specific parameters use descriptive names.
+fps_val = numFrames / secondVideo;
+um_px_stored = px_to_um;
+if ~convert_to_um, um_px_stored = 1.0; end
+
+T_Meta = table( ...
+    string(outFile), ...
+    secondVideo, ...
+    numFrames, ...
+    fps_val, ...
+    time_int, ...
+    um_px_stored, ...
+    sg_window, ...
+    sg_poly, ...
+    logical(fps_scale_sg_window), ...
+    depth_speed_ratio, ...
+    v_min_threshold, ...
+    logical(use_angular_confirmation), ...
+    w_confirm_factor, ...
+    'VariableNames', { ...
+        'OutFile', ...
+        'TotalDur_s', ...
+        'NumFrames', ...
+        'FPS', ...
+        'dt_s', ...
+        'um_per_px', ...
+        'sg_window', ...
+        'sg_poly', ...
+        'fps_scale_sg_window', ...
+        'depth_speed_ratio', ...
+        'v_min_threshold', ...
+        'use_angular_confirmation', ...
+        'w_confirm_factor' ...
+    });
+
+% ---- Write to Excel ----
+writetable(T_PerTrack, outFile, 'Sheet', 'PerTrack_Metrics',  'WriteMode', 'overwrite');
+writetable(T_Meta,     outFile, 'Sheet', 'Metadata',          'WriteMode', 'overwrite');
+
+fprintf('Excel saved → %s\n', outFile);
+
+%% =========================================================
 %  Histograms
 %  =========================================================
 
@@ -513,6 +685,7 @@ vr_plot   = avg_vel(~isnan(avg_vel));           % translational speed during run
 vt_plot   = avg_v_tumble(~isnan(avg_v_tumble)); % translational speed during tumbles
 wr_plot   = avg_w_run(~isnan(avg_w_run));       % angular velocity during runs
 wt_plot   = avg_w_tumble(~isnan(avg_w_tumble)); % angular velocity during tumbles
+tf_plot   = tumble_freq(~isnan(tumble_freq));   % tumbles per second
 
 % ---- Population-level summary statistics ----
 pop_mean_nt  = mean(nt_plot);    pop_med_nt  = median(nt_plot);
@@ -524,6 +697,7 @@ pop_mean_vr  = mean(vr_plot);    pop_med_vr  = median(vr_plot);
 pop_mean_vt  = mean(vt_plot);    pop_med_vt  = median(vt_plot);
 pop_mean_wr  = mean(wr_plot);    pop_med_wr  = median(wr_plot);
 pop_mean_wt  = mean(wt_plot);    pop_med_wt  = median(wt_plot);
+pop_mean_tf  = mean(tf_plot);    pop_med_tf  = median(tf_plot);
 
 % ---- Print summary table ----
 fprintf('\n');
@@ -532,16 +706,18 @@ fprintf('          Population Summary  (N = %d bacteria analysed)\n', length(nt_
 fprintf('=====================================================================\n');
 fprintf('%-35s   %10s   %10s\n', 'Metric', 'Mean', 'Median');
 fprintf('---------------------------------------------------------------------\n');
-fprintf('%-35s   %10.2f   %10.2f\n', 'Number of tumbles', pop_mean_nt, pop_med_nt);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble duration (s)', pop_mean_att, pop_med_att);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Run duration (s)', pop_mean_art, pop_med_art);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble angle (deg)', pop_mean_aa, pop_med_aa);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble linear speed (µm/s)', pop_mean_vt, pop_med_vt);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)', pop_mean_vr, pop_med_vr);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Number of tumbles',          pop_mean_nt,  pop_med_nt);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumbles per second (1/s)',   pop_mean_tf,  pop_med_tf);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble duration (s)',        pop_mean_att, pop_med_att);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Run duration (s)',           pop_mean_art, pop_med_art);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble angle (deg)',         pop_mean_aa,  pop_med_aa);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble linear speed (µm/s)', pop_mean_vt,  pop_med_vt);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)',    pop_mean_vr,  pop_med_vr);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Track duration (s)',         mean(dur_plot), median(dur_plot));
 fprintf('=====================================================================\n\n');
 
 % ---- Histogram panels ----
-figure('Units','inches', 'Position',[1 1 15 8], 'Color','white');
+figure('Units','inches', 'Position',[1 1 18 8], 'Color','white');
 
 subplot(2,3,1); smart_histogram(nt_plot,  pop_mean_nt,  'Number of Tumbles',    'Tumble Count',        dodgerblue, avgline, true);
 subplot(2,3,2); smart_histogram(att_plot, pop_mean_att, 'Tumble Duration (s)',   'Tumble Duration',     dodgerblue, avgline, false);
@@ -549,6 +725,31 @@ subplot(2,3,3); smart_histogram(art_plot, pop_mean_art, 'Run Duration (s)',     
 subplot(2,3,4); smart_histogram(aa_plot,  pop_mean_aa,  'Tumble Angle (deg)',    'Tumble Angle',        dodgerblue, avgline, false);
 subplot(2,3,5); smart_histogram(vt_plot,  pop_mean_vt,  'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
 subplot(2,3,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
+
+% ---- Tumble frequency scatter plot (separate window) ----
+% Each dot = one bacterium. x = tumbles/s, y = total track duration.
+% Only plot bacteria that have both values defined.
+scatter_mask = ~isnan(tumble_freq) & ~isnan(track_duration_s);
+x_sc = tumble_freq(scatter_mask);
+y_sc = track_duration_s(scatter_mask);
+
+figure('Units','inches', 'Position',[1 1 7 6], 'Color','white');
+scatter(x_sc, y_sc, 40, dodgerblue, 'filled', 'MarkerFaceAlpha', 0.6);
+hold on;
+xline(pop_mean_tf, '--', 'Color', avgline, 'LineWidth', 1.5, ...
+    'Label', sprintf('Mean=%.4f', pop_mean_tf), ...
+    'LabelOrientation', 'horizontal', 'FontSize', 10);
+hold off;
+xlabel('Tumbles per Second (1/s)', 'FontSize', 14);
+ylabel('Track Duration (s)',       'FontSize', 14);
+title('Tumble Frequency vs Track Duration', 'FontSize', 14);
+set(gca, 'FontSize', 12, 'TickDir', 'in', 'Box', 'on');
+
+% 5% padding on both axes so no dot touches the box edge
+x_pad = (max(x_sc) - min(x_sc)) * 0.05;
+y_pad = (max(y_sc) - min(y_sc)) * 0.05;
+xlim([max(0, min(x_sc) - x_pad),  max(x_sc) + x_pad]);
+ylim([max(0, min(y_sc) - y_pad),  max(y_sc) + y_pad]);
 
 
 %% =========================================================

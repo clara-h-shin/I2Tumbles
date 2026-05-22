@@ -3,7 +3,7 @@
 % from SimpleTrackingoutput.mat and pre-computed variables from
 % CellTrackAnalysis.m.
 
-% Last updated: 4/14/2026
+% Last updated: 5/22/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -14,18 +14,103 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bacteria_idx = 1;           % column index of the bacterium to plot (integer)
+bacteria_idx = 54;           % column index of the bacterium to plot (integer)
+                            % bacteria_idx = 0 will display random 20
+                            % bacteria tracks
 
 %% =========================================================
-%  Load metadata from SimpleTrackingoutput.mat
+%  Load metadata from the mat file
 %  =========================================================
 
-secondVideo=    30;                                 % video duration in seconds
+secondVideo=    10;                                 % video duration in seconds
 
-raw_ma=         load('SimpleTrackingoutput.mat', 'Nframes');
+raw_mat=        load('Indole_14.mat', 'Nframes');
+
 Nframes=        double(raw_mat.Nframes);
 time_int=       secondVideo / Nframes;               % time interval
 mat_data=       []; 
+
+
+if bacteria_idx == 0
+
+    % ---- Pick 20 random bacteria that have valid trajectory data ----
+    n_samples    = 20;
+    valid_bact   = find(~cellfun(@isempty, t_x_mat));   % bacteria with computed data
+    n_available  = length(valid_bact);
+
+    if n_available < n_samples
+        warning('Only %d bacteria with data available; showing all of them.', n_available);
+        n_samples = n_available;
+    end
+
+    rng('shuffle');                                      % different random set each run
+    chosen = valid_bact(randperm(n_available, n_samples));
+
+    % ---- 4 × 5 grid of trajectory subplots ----
+    n_cols = 5;
+    n_rows = ceil(n_samples / n_cols);   % = 4 for 20 samples
+
+    figure('Units','inches', 'Position',[1 1 18 14], 'Color','white');
+
+    for k = 1 : n_samples
+        bi = chosen(k);
+
+        % Get trajectory from stored arrays (already in µm if convert_to_um=true)
+        xi_raw = xmat(:, bi);
+        yi_raw = ymat(:, bi);
+        vr     = find(~isnan(xi_raw));
+        xi     = xi_raw(vr);
+        yi     = yi_raw(vr);
+        if exist('convert_to_um','var') && convert_to_um && exist('px_to_um','var')
+            xi = xi * px_to_um;
+            yi = yi * px_to_um;
+        end
+
+        tx_v = tumble_x_mat{bi};
+        ty_v = tumble_y_mat{bi};
+        n_tumb = num_tumbles(bi);
+        if isnan(n_tumb), n_tumb = 0; end
+
+        ax = subplot(n_rows, n_cols, k);
+
+        plot(xi, yi, 'k-', 'LineWidth', 0.8);
+        hold on;
+
+        if ~isempty(tx_v) && ~isempty(ty_v)
+            scatter(tx_v, ty_v, 15, 'b', 'filled');
+        end
+
+        scatter(xi(1), yi(1), 60, 'g', 'o', 'LineWidth', 1.2);
+
+        % Square, padded axes centred on the trajectory
+        x_lo = min(xi); x_hi = max(xi);
+        y_lo = min(yi); y_hi = max(yi);
+        rng_xy   = max(max(x_hi-x_lo, y_hi-y_lo), 1);  % guard zero-range
+        x_mid    = (x_lo + x_hi) / 2;
+        y_mid    = (y_lo + y_hi) / 2;
+        half_pad = rng_xy / 2 * 1.15;
+        xlim([x_mid - half_pad, x_mid + half_pad]);
+        ylim([y_mid - half_pad, y_mid + half_pad]);
+        axis square;
+
+        set(ax, 'YDir','reverse', 'TickDir','in', 'Box','on', 'FontSize', 8);
+        title(sprintf('ID %d  |  %d tumble(s)', bi, n_tumb), 'FontSize', 8);
+
+        % Only label outer axes to avoid clutter
+        if mod(k-1, n_cols) == 0
+            ylabel('Y (\mum)', 'FontSize', 8);
+        end
+        if k > (n_rows-1) * n_cols
+            xlabel('X (\mum)', 'FontSize', 8);
+        end
+
+        hold off;
+    end
+
+    sgtitle('Random Sample of 20 Trajectories', ...
+        'FontSize', 14, 'FontWeight', 'bold');
+
+else   % ---- single-bacterium mode ----
 
 %% =========================================================
 %  Extract single-bacterium data from workspace variables
@@ -34,14 +119,23 @@ mat_data=       [];
 % Raw x/y for this bacterium (may contain NaN for missing frames)
 x_raw = xmat(:, bacteria_idx);
 y_raw = ymat(:, bacteria_idx);
-duration    = secondVideo;                    % total video duration (s)
-frame_count = Nframes;                        % alias kept for clarity
+duration    = secondVideo;
+frame_count = Nframes;
 
 % Frame numbers (1-based row indices) where the bacterium was detected
 valid_rows = find(~isnan(x_raw));
 frame      = valid_rows;
 x          = x_raw(valid_rows);
 y          = y_raw(valid_rows);
+
+% CellTrackAnalysis.m converts coordinates to µm before storing tumble_x_mat.
+% Apply the same conversion here so the trajectory line and tumble dots
+% are on the same coordinate system. If convert_to_um is false in
+% CellTrackAnalysis.m, set it to false here too.
+if exist('convert_to_um','var') && convert_to_um && exist('px_to_um','var')
+    x = x * px_to_um;
+    y = y * px_to_um;
+end
 
 t_x = [];
 t_y = [];
@@ -79,6 +173,8 @@ scatter(x(1), y(1), 200, 'g', 'o', 'LineWidth', 1.5);
 
 xlabel('X (\mum)', 'FontSize', 18);
 ylabel('Y (\mum)', 'FontSize', 18);
+title(sprintf('Bacterium %d  |  %d tumble(s)', bacteria_idx, num_tumbles(bacteria_idx)), ...
+    'FontSize', 14);
 set(gca, 'YDir','reverse', 'TickDir','in', 'Box','on', 'FontSize', 14);
 
 x_lo = min(x);  x_hi = max(x); x_range = x_hi - x_lo;
@@ -187,6 +283,8 @@ min_x = min([yl1.Position(1), yl2.Position(1), yl3L.Position(1)]);
 yl1.Position(1) = min_x;
 yl2.Position(1) = min_x;
 yl3L.Position(1) = min_x;
+
+end   % end bacteria_idx branch
 
 %% =========================================================
 %  Helper function — smart y-axis tick marks
