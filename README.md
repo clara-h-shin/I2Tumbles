@@ -4,7 +4,7 @@ and provides metrics such as tumbles per second to help researchers compare expe
 
 This script was initially developed to support research in the Baylink Lab, but it can also be applied to a wide range of chemotaxis studies.
 
-###To use this program:### 
+### To use this program:
 1. Run *SimpleTracking.m*
   - This script converts bacterial movement images into x and y coordinates, saved as SimpleTrackingOutput.mat.
   - You will need to have tiff images converted from a video to run this script properly. To learn more about converting the images, please refer to *swim_tracking_tutorial_by_kailie.docx*.
@@ -16,7 +16,7 @@ This script was initially developed to support research in the Baylink Lab, but 
   - This script can be used for checking the validity of the outcomes from *PlotTrajectory.m*.
   - Set the parameters before running. For more detailed instructions, refer to *PlotTrajectory_Instructions.pdf*.
 
-###Inputs and Outputs###
+### Inputs and Outputs
 1. *SimpleTracking.m*
    - Input: .tif image files converted by Fiji/ ImageJ from a video. Should be more than 1 image.
    - Outputs:
