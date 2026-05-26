@@ -15,6 +15,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 bacteria_idx = 0;           % column index of the bacterium to plot (integer)
+
                             % bacteria_idx = 0 will display random 20
                             % bacteria tracks
 
