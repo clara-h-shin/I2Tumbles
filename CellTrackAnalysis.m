@@ -9,7 +9,7 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
-% Last updated: 5/23/2026
+% Last updated: 5/26/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -46,6 +46,9 @@ w_confirm_factor  = 0.20;
 % --- Minimum speed at tumble dip ---
 min_tumble_speed  = 3.0;                    
 
+% --- Scatter plot: show bacteria IDs next to each dot ---
+show_scatter_labels = false;               % true = annotate each dot with its TrackID
+
 %% =========================================================
 %  Load simpletracking output data
 %  =========================================================
@@ -75,7 +78,7 @@ y_raw     = objs_link(2, :)';
 frame_raw = objs_link(5, :)';
 id_raw    = objs_link(6, :)';
 
-track_ids  = unique(id_raw);
+track_ids  = unique(id_raw)';   % row vector — must match orientation of tumble_freq etc.
 Nbacteria  = length(track_ids);
 
 xmat = NaN(numFrames, Nbacteria);
@@ -585,7 +588,7 @@ if exist(outFile, 'file')
     delete(outFile);
 end
 
-% ---- TrackDuration_s ----
+% ---- TrackDuration_s: ensure every bacterium with any valid frames gets a value ----
 % track_duration_s is set inside the bacterium loop only when a track reaches
 % the summary-metrics block.  Bacteria that exit early (short track, no tumbles
 % found after filtering, etc.) are still NaN here.  Fill those gaps now from
@@ -761,8 +764,10 @@ subplot(2,3,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',   
 % Each dot = one bacterium. x = tumbles/s, y = total track duration.
 % Only plot bacteria that have both values defined.
 scatter_mask = ~isnan(tumble_freq) & ~isnan(track_duration_s);
-x_sc = tumble_freq(scatter_mask);
-y_sc = track_duration_s(scatter_mask);
+x_sc    = tumble_freq(scatter_mask);
+y_sc    = track_duration_s(scatter_mask);
+ids_sc  = find(scatter_mask);   % sequential 1-based IDs, same as TrackID in Excel
+                                % = bacteria_idx in PlotTrajectory.m
 
 figure('Units','inches', 'Position',[1 1 7 6], 'Color','white');
 scatter(x_sc, y_sc, 40, dodgerblue, 'filled', 'MarkerFaceAlpha', 0.6);
@@ -770,16 +775,29 @@ hold on;
 xline(pop_mean_tf, '--', 'Color', avgline, 'LineWidth', 1.5, ...
     'Label', sprintf('Mean=%.4f', pop_mean_tf), ...
     'LabelOrientation', 'horizontal', 'FontSize', 10);
+
+if show_scatter_labels
+    x_pad_lbl = (max(x_sc) - min(x_sc)) * 0.012;   % small horizontal nudge
+    for i = 1 : numel(x_sc)
+        text(x_sc(i) + x_pad_lbl, y_sc(i), num2str(ids_sc(i)), ...
+            'FontSize', 8, 'Color', [0.2 0.2 0.2], ...
+            'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left');
+    end
+end
+
 hold off;
 xlabel('Tumbles per Second (1/s)', 'FontSize', 14);
 ylabel('Track Duration (s)',       'FontSize', 14);
 title('Tumble Frequency vs Track Duration', 'FontSize', 14);
 set(gca, 'FontSize', 12, 'TickDir', 'in', 'Box', 'on');
 
-% 5% padding on both axes so no dot touches the box edge
+% Padding on both axes so no dot touches the box edge.
+% x left-edge: use a fixed fraction of the data range so zero-valued dots
+% have breathing room and don't pile up against the y axis.
 x_pad = (max(x_sc) - min(x_sc)) * 0.05;
 y_pad = (max(y_sc) - min(y_sc)) * 0.05;
-xlim([max(0, min(x_sc) - x_pad),  max(x_sc) + x_pad]);
+x_left_pad = max(x_pad, max(x_sc) * 0.08);  % at least 8% of the max value
+xlim([min(x_sc) - x_left_pad,  max(x_sc) + x_pad]);
 ylim([max(0, min(y_sc) - y_pad),  max(y_sc) + y_pad]);
 
 
