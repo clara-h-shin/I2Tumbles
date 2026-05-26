@@ -47,7 +47,7 @@ w_confirm_factor  = 0.20;
 min_tumble_speed  = 3.0;                    
 
 % --- Scatter plot: show bacteria IDs next to each dot ---
-show_scatter_labels = false;               % true = annotate each dot with its TrackID
+show_bacteria_idx = false;               % true = annotate each dot with its TrackID
 
 %% =========================================================
 %  Load simpletracking output data
@@ -776,7 +776,7 @@ xline(pop_mean_tf, '--', 'Color', avgline, 'LineWidth', 1.5, ...
     'Label', sprintf('Mean=%.4f', pop_mean_tf), ...
     'LabelOrientation', 'horizontal', 'FontSize', 10);
 
-if show_scatter_labels
+if show_bacteria_idx
     x_pad_lbl = (max(x_sc) - min(x_sc)) * 0.012;   % small horizontal nudge
     for i = 1 : numel(x_sc)
         text(x_sc(i) + x_pad_lbl, y_sc(i), num2str(ids_sc(i)), ...
