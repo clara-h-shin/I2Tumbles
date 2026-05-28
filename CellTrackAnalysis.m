@@ -9,7 +9,7 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
-% Last updated: 5/26/2026
+% Last updated: 5/27/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -36,7 +36,7 @@ minTrackLength=     sg_window + 2;          % minimum track length; updated belo
 w_offset=           50;                     % rad/s offset added to w_filt for overlay plot
 
 % --- Tumble detection thresholds ---
-depth_speed_ratio=  0.7;                    % Value: 0.5 - 0.999 (The higher, more conservative)
+depth_speed_ratio=  0.9;                    % Value: 0.5 - 0.999 (The higher, more conservative)
 v_min_threshold=    0.3;                    % tumble frame width threshold
 
 % --- Angular speed confirmation ---
@@ -47,7 +47,7 @@ w_confirm_factor  = 0.20;
 min_tumble_speed  = 3.0;                    
 
 % --- Scatter plot: show bacteria IDs next to each dot ---
-show_bacteria_idx = false;               % true = annotate each dot with its TrackID
+show_scatter_labels = false;               % true = annotate each dot with its TrackID
 
 %% =========================================================
 %  Load simpletracking output data
@@ -460,20 +460,20 @@ for b = 1 : Nbacteria
     if length(run_time) >= 2
         run_time(1)   = [];
         run_time(end) = [];
+    elseif length(run_time) == 1
+        % Only one tumble: keep the single interior run segment as-is.
+        % (The leading/trailing boundary trimming doesn't apply here.)
     else
         run_time = [];
     end
 
     if isempty(run_time)
-        % Run timing can't be measured, but the tumble itself is valid.
-        % Store the tumble position so blue dots still appear on the plot.
-        num_tumbles(b)        = n_tumble_detected;
-        tumble_frames_mat{b}  = tumble_frames;
-        t_tumble_mat{b}       = t_tumble;
-        valid_tt = t_tumble(t_tumble >= 1 & t_tumble <= length(x_out));
-        tumble_x_mat{b}       = x_out(valid_tt);
-        tumble_y_mat{b}       = y_out(valid_tt);
-        continue
+        % run_time was stripped because there was only 1 tumble and the
+        % trimming logic removed both the first and last boundary.
+        % We can still compute tumble-level metrics — fall through to the
+        % summary block below rather than skipping with continue.
+        % run_time stays empty; avg_run_t will remain NaN for this track
+        % (the 0-tumble fill in the export section handles it correctly).
     end
 
     % ----------------------------------------------------------------
@@ -512,7 +512,11 @@ for b = 1 : Nbacteria
     n_skip = 0;
     for i = 1 : length(tumble_time)
         if i == 1
-            rt_prev = run_time(end);
+            if isempty(run_time)
+                rt_prev = 0;
+            else
+                rt_prev = run_time(end);
+            end
         elseif (i-1) <= length(run_time)
             rt_prev = run_time(i-1);
         else
@@ -608,12 +612,15 @@ tumble_freq = nan(1, Nbacteria);
 valid_dur   = ~isnan(track_duration_s) & track_duration_s > 0 & ~isnan(num_tumbles);
 tumble_freq(valid_dur) = num_tumbles(valid_dur) ./ track_duration_s(valid_dur);
 
-% ---- MeanRunDuration_s: if 0 tumbles the whole track is a single run ----
-% avg_run_t is NaN for bacteria with 0 tumbles (no run segments were
-% bounded by tumbles).  Replace those NaNs with the full track duration.
+% ---- MeanRunDuration_s: fill NaN cases ----
+% 0 tumbles: whole track is a single run → use TrackDuration_s
+% 1 tumble:  run time can't be measured from boundaries → TrackDuration_s - MeanTumbleDuration_s
 mean_run_dur = avg_run_t(:)';
 zero_tumble  = (~isnan(num_tumbles)) & (num_tumbles == 0);
+one_tumble   = (~isnan(num_tumbles)) & (num_tumbles == 1);
 mean_run_dur(zero_tumble) = track_duration_s(zero_tumble);
+mean_run_dur(one_tumble & isnan(mean_run_dur)) = ...
+    track_duration_s(one_tumble & isnan(mean_run_dur)) - avg_tumble_t(one_tumble & isnan(mean_run_dur));
 
 % ---- MeanRunSpeed_um_per_s: if 0 tumbles use the whole-track average speed ----
 % avg_vel is only computed over labelled run-frames; for 0-tumble bacteria
@@ -760,7 +767,7 @@ subplot(2,3,4); smart_histogram(aa_plot,  pop_mean_aa,  'Tumble Angle (deg)',   
 subplot(2,3,5); smart_histogram(vt_plot,  pop_mean_vt,  'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
 subplot(2,3,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
 
-% ---- Tumble frequency scatter plot (separate window) ----
+% ---- Tumble frequency scatter plot ----
 % Each dot = one bacterium. x = tumbles/s, y = total track duration.
 % Only plot bacteria that have both values defined.
 scatter_mask = ~isnan(tumble_freq) & ~isnan(track_duration_s);
@@ -776,7 +783,7 @@ xline(pop_mean_tf, '--', 'Color', avgline, 'LineWidth', 1.5, ...
     'Label', sprintf('Mean=%.4f', pop_mean_tf), ...
     'LabelOrientation', 'horizontal', 'FontSize', 10);
 
-if show_bacteria_idx
+if show_scatter_labels
     x_pad_lbl = (max(x_sc) - min(x_sc)) * 0.012;   % small horizontal nudge
     for i = 1 : numel(x_sc)
         text(x_sc(i) + x_pad_lbl, y_sc(i), num2str(ids_sc(i)), ...
