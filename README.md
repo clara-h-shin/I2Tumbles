@@ -29,6 +29,8 @@ This script was initially developed to support research in the Baylink Lab, but 
    - Outputs:
      - Prints out the summarized (mean and median) metrics (i.e. Number of Tumbles, Tumbles Per Second, Tumble Angle, etc.)
      - CellTrackAnalysis_results.xlsx: An excel file with metrics per bacterium and summarized metrics
+       - PerTrack_Metrics tab: Metrics of individual bacterium (per row)
+       - Metadata tab: Summarized metrics of the group
      - Visualization: Histograms of the metrics and a scatterplot of Tumbles Per Second vs Track Duration
 3. *PlotTrajectory.m*
    - Input: SimpleTrackingoutput.mat or .mat file from TrackingGUI
