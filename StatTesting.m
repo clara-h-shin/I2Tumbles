@@ -14,7 +14,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test_type = 2;              % Statistical test to run:
+test_type = 4;              % Statistical test to run:
                             %   1 = Two-sample KS test     (kstest2)       → group_count = 2
                             %   2 = Kruskal-Wallis test    (kruskalwallis) → adjust group_count
                             %   3 = Two-sample t-test      (ttest2)        → group_count = 2
@@ -24,7 +24,7 @@ group_count = 3;            % Number of groups (= number of Excel files to selec
                             % Ignored and overridden to 2 for test_type 1 and 3.
                             % Must be a positive integer >= 2.
 
-excel_column_name = 'TumbleCount';
+excel_column_name = 'Tumbles_per_s';
                             % Column to read from the PerTrack_Metrics sheet.
                             % e.g. 'TumbleCount', 'Tumbles_per_s',
                             %      'MeanRunDuration_s', 'TrackDuration_s'
