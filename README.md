@@ -15,6 +15,9 @@ This script was initially developed to support research in the Baylink Lab, but 
 3. [Optional] Run *PlotTrajectory.m*
   - This script can be used for checking the validity of the outcomes from *PlotTrajectory.m*.
   - Set the parameters before running. For more detailed instructions, refer to *PlotTrajectory_Instructions.pdf*.
+4. [Optional] Run *StatTesting.m*
+  - Performs Kruskal-Wallis statistical testing across multiple groups.
+  - Set the parameters before running. For more detailed instructions, refer to *StatTesting_Instructions.pdf*.
 
 ### Inputs and Outputs
 1. *SimpleTracking.m*
@@ -31,12 +34,18 @@ This script was initially developed to support research in the Baylink Lab, but 
      - CellTrackAnalysis_results.xlsx: An excel file with metrics per bacterium and summarized metrics
        - PerTrack_Metrics tab: Metrics of individual bacterium (per row)
        - Metadata tab: Summarized metrics of the group
+       - IMPORTANT: Change the file name if you want to perform statistical testing (Step 4)
      - Visualization: Histograms of the metrics and a scatterplot of Tumbles Per Second vs Track Duration
 3. *PlotTrajectory.m*
    - Input: SimpleTrackingoutput.mat or .mat file from TrackingGUI
    - Outputs:
      - If bacteria_idx = 0, a visualization of randomly selected 20 bacteria tracks with tumble location in blue dots
      - If bacteria_idx = bacteria id, a larger track with tumble location of a bacterium with graphs of linear and angular velocities marked with tumble location
+4. *StatTesting.m*
+   - Input: Excel outputs from *CellTrackAnalysis.m* (CellTrackAnalysis_results.xlsx - change the file names before next run!)
+   - Outputs:
+     - Visualizations of Kruskal-Wallis statistical testing results
+     - Prints out the statistical testing results
 
 #### Baylink Lab
 www.baylink-lab.com
