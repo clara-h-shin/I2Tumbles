@@ -9,6 +9,9 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
+% < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
+% ^ If you want to perform statistical testing. 
+
 % Last updated: 6/2/2026
 % By Clara Shin
 
