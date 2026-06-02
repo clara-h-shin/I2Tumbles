@@ -1,5 +1,6 @@
 
-% SimpleTracking - Version 2.0
+%% SimpleTracking - Version 2.0
+% Reference: Parthasarathy, R. (2012)
 
 % This script was written to utilize TrackingGUI without the GUI and
 % pre-set settings that are frequently used in Baylink Lab. 
@@ -13,7 +14,7 @@
 % Version 1.0 Written Fall 2025
 % Version 2.0 Written Spring 2026
 
-% Last updated: 5/22/2026
+% Last updated: 6/2/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

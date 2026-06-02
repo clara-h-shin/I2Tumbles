@@ -1,4 +1,4 @@
-% CellTrackAnalysis.m
+%% CellTrackAnalysis.m
 % Reference: Johnson et al., (2024)
 
 % Calculates number of tumbles and velocities from bacteria images tracked 
@@ -9,7 +9,7 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
-% Last updated: 5/27/2026
+% Last updated: 6/2/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -36,7 +36,7 @@ minTrackLength=     sg_window + 2;          % minimum track length; updated belo
 w_offset=           50;                     % rad/s offset added to w_filt for overlay plot
 
 % --- Tumble detection thresholds ---
-depth_speed_ratio=  0.9;                    % Value: 0.5 - 0.999 (The higher, more conservative)
+depth_speed_ratio=  0.7;                    % Value: 0.5 - 0.999 (The higher, more conservative)
 v_min_threshold=    0.3;                    % tumble frame width threshold
 
 % --- Angular speed confirmation ---
@@ -47,7 +47,7 @@ w_confirm_factor  = 0.20;
 min_tumble_speed  = 3.0;                    
 
 % --- Scatter plot: show bacteria IDs next to each dot ---
-show_scatter_labels = false;               % true = annotate each dot with its TrackID
+show_scatter_labels = true;               % true = annotate each dot with its TrackID
 
 %% =========================================================
 %  Load simpletracking output data

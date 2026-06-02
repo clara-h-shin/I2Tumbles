@@ -1,4 +1,5 @@
 %% PlotTrajectory.m
+% Reference: Johnson et al., (2024)
 % Plots trajectory and velocity figures for a single bacterium using data
 % from SimpleTrackingoutput.mat and pre-computed variables from
 % CellTrackAnalysis.m.
@@ -12,7 +13,7 @@
 
 %% MAIN PARAMETERS
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% d%%%%%%%%%%%%%%%
 
 bacteria_idx = 0;           % column index of the bacterium to plot (integer)
 
