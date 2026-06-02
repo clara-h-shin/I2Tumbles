@@ -16,7 +16,7 @@ This script was initially developed to support research in the Baylink Lab, but 
   - This script can be used for checking the validity of the outcomes from *PlotTrajectory.m*.
   - Set the parameters before running. For more detailed instructions, refer to *PlotTrajectory_Instructions.pdf*.
 4. [Optional] Run *StatTesting.m*
-  - Performs Kruskal-Wallis statistical testing across multiple groups.
+  - Performs statistical testing of user choice across multiple groups.
   - Set the parameters before running. For more detailed instructions, refer to *StatTesting_Instructions.pdf*.
 
 ### Inputs and Outputs
@@ -44,7 +44,7 @@ This script was initially developed to support research in the Baylink Lab, but 
 4. *StatTesting.m*
    - Input: Excel outputs from *CellTrackAnalysis.m* (CellTrackAnalysis_results.xlsx - change the file names before next run!)
    - Outputs:
-     - Visualizations of Kruskal-Wallis statistical testing results
+     - Visualizations of statistical testing results
      - Prints out the statistical testing results
 
 #### Baylink Lab
