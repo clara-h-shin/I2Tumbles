@@ -14,12 +14,11 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test_type = 1;              % Statistical test to run:
+test_type = 2;              % Statistical test to run:
                             %   1 = Two-sample KS test     (kstest2)       → group_count = 2
                             %   2 = Kruskal-Wallis test    (kruskalwallis) → adjust group_count
                             %   3 = Two-sample t-test      (ttest2)        → group_count = 2
                             %   4 = One-way ANOVA          (anova1)        → adjust group_count
-                            %   5 = Two-way ANOVA          (anova2)        → adjust group_count
 
 group_count = 3;            % Number of groups (= number of Excel files to select).
                             % Ignored and overridden to 2 for test_type 1 and 3.
@@ -191,28 +190,6 @@ switch test_type
             title(sprintf('Multiple Comparisons — %s', excel_column_name), ...
                 'FontSize', 13, 'FontWeight', 'bold');
         end
-
-    % ---------------------------------------------------------
-    case 5   % anova2 — two-way ANOVA
-    % ---------------------------------------------------------
-        % anova2 requires a balanced matrix (no NaN padding).
-        % Check that all groups have the same number of observations.
-        group_sizes = cellfun(@numel, groups);
-        if numel(unique(group_sizes)) > 1
-            error(['anova2 requires equal group sizes (balanced design).\n' ...
-                   'Group sizes found: %s\n' ...
-                   'Consider using test_type=4 (one-way ANOVA) for unbalanced data.'], ...
-                   num2str(group_sizes));
-        end
-        % Reshape into balanced matrix: rows = replicates, cols = groups
-        balancedMatrix = zeros(group_sizes(1), group_count);
-        for g = 1 : group_count
-            balancedMatrix(:, g) = groups{g};
-        end
-        reps = 1;   % number of replicates per cell; adjust if needed
-        [p, tbl, stats] = anova2(balancedMatrix, reps, 'on');
-        fprintf('p-values      : Columns=%.6f | Rows=%.6f | Interaction=%.6f\n', ...
-            p(1), p(2), p(3));
 
 end
 
