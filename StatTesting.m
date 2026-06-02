@@ -1,7 +1,6 @@
 %% StatTesting.m
-% Performs Kruskal-Wallis statistical testing across multiple groups.
+% Performs statistical testing across multiple groups.
 % Each group corresponds to one CellTrackAnalysis_results.xlsx file.
-% < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
 % Reads a single column from the PerTrack_Metrics sheet of each file.
 
 % Last updated: 6/2/2026
@@ -15,12 +14,21 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-group_count=        3;              % number of groups (= number of Excel files to select)
-                                    % must be a positive integer
+test_type = 1;              % Statistical test to run:
+                            %   1 = Two-sample KS test     (kstest2)       → group_count = 2
+                            %   2 = Kruskal-Wallis test    (kruskalwallis) → adjust group_count
+                            %   3 = Two-sample t-test      (ttest2)        → group_count = 2
+                            %   4 = One-way ANOVA          (anova1)        → adjust group_count
+                            %   5 = Two-way ANOVA          (anova2)        → adjust group_count
 
-excel_column_name=  'Tumbles_per_s';% column to read from the PerTrack_Metrics sheet
-                                    % e.g. 'TumbleCount', 'Tumbles_per_s',
-                                    %      'MeanRunDuration_s', 'TrackDuration_s'
+group_count = 3;            % Number of groups (= number of Excel files to select).
+                            % Ignored and overridden to 2 for test_type 1 and 3.
+                            % Must be a positive integer >= 2.
+
+excel_column_name = 'TumbleCount';
+                            % Column to read from the PerTrack_Metrics sheet.
+                            % e.g. 'TumbleCount', 'Tumbles_per_s',
+                            %      'MeanRunDuration_s', 'TrackDuration_s'
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -28,10 +36,29 @@ excel_column_name=  'Tumbles_per_s';% column to read from the PerTrack_Metrics s
 %  Validate parameters
 %  =========================================================
 
-if ~isnumeric(group_count) || group_count < 2 || floor(group_count) ~= group_count
-    error('group_count must be an integer >= 2. Got: %g', group_count);
+if ~isnumeric(test_type) || ~ismember(test_type, 1:5)
+    error('test_type must be an integer from 1 to 5. Got: %g', test_type);
 end
-group_count = int32(group_count);
+
+% test_type 1 (kstest2) and 3 (ttest2) are two-sample tests only
+if ismember(test_type, [1, 3])
+    if group_count ~= 2
+        fprintf('Note: test_type %d requires exactly 2 groups. Overriding group_count to 2.\n', test_type);
+    end
+    group_count = 2;
+else
+    if ~isnumeric(group_count) || group_count < 2 || floor(group_count) ~= group_count
+        error('group_count must be an integer >= 2. Got: %g', group_count);
+    end
+end
+group_count = double(group_count);
+
+test_names = {'Two-sample KS Test (kstest2)', ...
+              'Kruskal-Wallis Test (kruskalwallis)', ...
+              'Two-sample t-test (ttest2)', ...
+              'One-way ANOVA (anova1)', ...
+              'Two-way ANOVA (anova2)'};
+fprintf('Test selected : %s\n', test_names{test_type});
 
 %% =========================================================
 %  Select files
@@ -51,7 +78,7 @@ for g = 1 : group_count
     end
 
     file_paths{g}  = fullfile(fpath, fname);
-    group_names{g} = sprintf('Group%d', g);   % Group1, Group2, Group3, ...
+    group_names{g} = sprintf('Group%d', g);
 
     fprintf('  Group %d → %s\n', g, fname);
 end
@@ -60,7 +87,7 @@ end
 %  Read column from each file
 %  =========================================================
 
-groups = cell(1, group_count);   % groups{g} = column vector of values
+groups = cell(1, group_count);
 
 for g = 1 : group_count
     try
@@ -77,8 +104,6 @@ for g = 1 : group_count
     end
 
     col_data = T.(excel_column_name);
-
-    % Keep only finite numeric values (drop NaN / Inf)
     col_data = col_data(isfinite(col_data));
 
     if isempty(col_data)
@@ -86,67 +111,126 @@ for g = 1 : group_count
             excel_column_name, g);
     end
 
-    groups{g} = col_data(:);   % ensure column vector
+    groups{g} = col_data(:);
     fprintf('  Group %d: %d valid values read.\n', g, numel(col_data));
 end
 
 %% =========================================================
-%  Data matrix for testing
+%  Assign data matrix
 %  =========================================================
 
-% Assign group1, group2, ... as individual workspace variables
 for g = 1 : group_count
     assignin('base', group_names{g}, groups{g});
 end
 
-% kruskalwallis expects a matrix where each column is one group.
-% Pad shorter columns with NaN so all columns have equal length.
 max_n      = max(cellfun(@numel, groups));
 dataMatrix = NaN(max_n, group_count);
-
 for g = 1 : group_count
     n = numel(groups{g});
     dataMatrix(1:n, g) = groups{g};
 end
 
-fprintf('\nData matrix built: %d rows × %d groups.\n', max_n, group_count);
+fprintf('\nData matrix built: %d rows x %d groups.\n', max_n, group_count);
 
 %% =========================================================
-%  Kruskal-Wallis test
+%  Run selected statistical test
 %  =========================================================
 
-fprintf('\n--- Kruskal-Wallis Test ---\n');
+fprintf('\n--- %s ---\n', test_names{test_type});
 fprintf('Column tested : %s\n', excel_column_name);
 fprintf('Groups        : %s\n\n', strjoin(group_names, ', '));
 
-[p, tbl, stats] = kruskalwallis(dataMatrix, group_names, 'on');
+p     = NaN;
+tbl   = [];
+stats = [];
 
-fprintf('p-value       : %.6f\n', p);
+switch test_type
 
-if p < 0.001
+    % ---------------------------------------------------------
+    case 1   % kstest2 — two-sample Kolmogorov-Smirnov test
+    % ---------------------------------------------------------
+        [h, p, ks2stat] = kstest2(groups{1}, groups{2});
+        fprintf('KS statistic  : %.6f\n', ks2stat);
+        fprintf('p-value       : %.6f\n', p);
+        fprintf('Reject H0     : %s\n', mat2str(logical(h)));
+
+    % ---------------------------------------------------------
+    case 2   % kruskalwallis
+    % ---------------------------------------------------------
+        [p, tbl, stats] = kruskalwallis(dataMatrix, group_names, 'on');
+        fprintf('p-value       : %.6f\n', p);
+
+        if p < 0.05 && group_count > 2
+            fprintf('\n--- Post-hoc Multiple Comparisons (Dunn-Sidak) ---\n');
+            figure('Units','inches', 'Position',[1 1 8 5], 'Color','white');
+            multcompare(stats, 'CriticalValueType', 'dunn-sidak');
+            title(sprintf('Multiple Comparisons — %s', excel_column_name), ...
+                'FontSize', 13, 'FontWeight', 'bold');
+        end
+
+    % ---------------------------------------------------------
+    case 3   % ttest2 — two-sample t-test
+    % ---------------------------------------------------------
+        [h, p, ci, ttstats] = ttest2(groups{1}, groups{2});
+        fprintf('t-statistic   : %.6f\n', ttstats.tstat);
+        fprintf('Degrees of f. : %d\n',   ttstats.df);
+        fprintf('95%% CI        : [%.6f, %.6f]\n', ci(1), ci(2));
+        fprintf('p-value       : %.6f\n', p);
+        fprintf('Reject H0     : %s\n', mat2str(logical(h)));
+
+    % ---------------------------------------------------------
+    case 4   % anova1 — one-way ANOVA
+    % ---------------------------------------------------------
+        [p, tbl, stats] = anova1(dataMatrix, group_names, 'on');
+        fprintf('p-value       : %.6f\n', p);
+
+        if p < 0.05 && group_count > 2
+            fprintf('\n--- Post-hoc Multiple Comparisons (Tukey-Kramer) ---\n');
+            figure('Units','inches', 'Position',[1 1 8 5], 'Color','white');
+            multcompare(stats);
+            title(sprintf('Multiple Comparisons — %s', excel_column_name), ...
+                'FontSize', 13, 'FontWeight', 'bold');
+        end
+
+    % ---------------------------------------------------------
+    case 5   % anova2 — two-way ANOVA
+    % ---------------------------------------------------------
+        % anova2 requires a balanced matrix (no NaN padding).
+        % Check that all groups have the same number of observations.
+        group_sizes = cellfun(@numel, groups);
+        if numel(unique(group_sizes)) > 1
+            error(['anova2 requires equal group sizes (balanced design).\n' ...
+                   'Group sizes found: %s\n' ...
+                   'Consider using test_type=4 (one-way ANOVA) for unbalanced data.'], ...
+                   num2str(group_sizes));
+        end
+        % Reshape into balanced matrix: rows = replicates, cols = groups
+        balancedMatrix = zeros(group_sizes(1), group_count);
+        for g = 1 : group_count
+            balancedMatrix(:, g) = groups{g};
+        end
+        reps = 1;   % number of replicates per cell; adjust if needed
+        [p, tbl, stats] = anova2(balancedMatrix, reps, 'on');
+        fprintf('p-values      : Columns=%.6f | Rows=%.6f | Interaction=%.6f\n', ...
+            p(1), p(2), p(3));
+
+end
+
+%% =========================================================
+%  Significance label (shared for all tests)
+%  =========================================================
+
+p_display = p(1);   % for anova2, report the column (group) p-value
+if p_display < 0.001
     sig_str = '*** (p < 0.001)';
-elseif p < 0.01
+elseif p_display < 0.01
     sig_str = '** (p < 0.01)';
-elseif p < 0.05
+elseif p_display < 0.05
     sig_str = '* (p < 0.05)';
 else
     sig_str = 'n.s. (p >= 0.05)';
 end
-
 fprintf('Significance  : %s\n\n', sig_str);
-
-%% =========================================================
-%  Post-hoc: Dunn-Sidak multiple comparisons (if p < 0.05)
-%  =========================================================
-
-if p < 0.05 && group_count > 2
-    fprintf('--- Post-hoc Multiple Comparisons (multcompare) ---\n');
-    figure('Units','inches', 'Position',[1 1 8 5], 'Color','white');
-    [results, means] = multcompare(stats, 'CriticalValueType', 'dunn-sidak');
-    title(sprintf('Multiple Comparisons — %s', excel_column_name), ...
-        'FontSize', 13, 'FontWeight', 'bold');
-    fprintf('Pairwise comparison results: \n\n');
-end
 
 %% =========================================================
 %  Summary statistics per group
