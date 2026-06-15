@@ -12,7 +12,7 @@
 % < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
 % ^ If you want to perform statistical testing. 
 
-% Last updated: 6/2/2026
+% Last updated: 6/14/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -34,7 +34,6 @@ fps_scale_sg_window= true;                  % true = auto-scale | false = use fi
 sg_window=          5;                      % Odd numbers only. Used when fps_scale_sg_window = false
 sg_poly=            2;                      % polynomial order (keep at 2)
 
-longRunThreshold=   6;                      % frames; runs >= this length are "long"
 minTrackLength=     sg_window + 2;          % minimum track length; updated below if scaling
 w_offset=           50;                     % rad/s offset added to w_filt for overlay plot
 
@@ -56,7 +55,7 @@ show_scatter_labels = true;               % true = annotate each dot with its Tr
 %  Load simpletracking output data
 %  =========================================================
 
-data      = load('SimpleTrackingoutput.mat');
+data      = load('1DMSO_12.mat');
 objs_link = data.objs_link;
 
 numFrames = double(data.Nframes);
