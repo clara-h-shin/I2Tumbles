@@ -12,7 +12,7 @@
 % < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
 % ^ If you want to perform statistical testing. 
 
-% Last updated: 6/14/2026
+% Last updated: 7/2/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -55,7 +55,7 @@ show_scatter_labels = true;               % true = annotate each dot with its Tr
 %  Load simpletracking output data
 %  =========================================================
 
-data      = load('1DMSO_12.mat');
+data      = load('SimpleTrackingoutput.mat');
 objs_link = data.objs_link;
 
 numFrames = double(data.Nframes);
@@ -120,6 +120,7 @@ avg_v_tumble      = NaN(1, Nbacteria);   % avg translational speed during tumble
 avg_w_run         = NaN(1, Nbacteria);   % avg angular velocity during runs (rad/s)
 avg_w_tumble      = NaN(1, Nbacteria);   % avg angular velocity during tumbles (rad/s)
 track_duration_s  = NaN(1, Nbacteria);   % total track duration in seconds
+migration         = NaN(1, Nbacteria);   % net displacement over first second (µm)
 
 %% =========================================================
 %  Bacterium metrics (translational velocity and angular velocity)
@@ -131,6 +132,26 @@ for b = 1 : Nbacteria
     x_col = xmat(:, b);
     y_col = ymat(:, b);
     valid = ~isnan(x_col) & ~isnan(y_col);
+
+    % ---- Migration
+    nFrames1s_mig = max(1, round(numFrames / secondVideo));
+    x_sm = movmedian_nan_col(x_col, 3);
+    y_sm = movmedian_nan_col(y_col, 3);
+    valid_idx_mig = find(~isnan(x_sm) & ~isnan(y_sm));
+    if numel(valid_idx_mig) >= 2
+        idx_start_mig  = valid_idx_mig(1);
+        idx_end_target = idx_start_mig + nFrames1s_mig;
+        idx_within_mig = valid_idx_mig(valid_idx_mig <= idx_end_target);
+        if numel(idx_within_mig) >= 2
+            xm = x_sm(idx_within_mig(end)) - x_sm(idx_within_mig(1));
+            ym = y_sm(idx_within_mig(end)) - y_sm(idx_within_mig(1));
+            if convert_to_um
+                xm = xm * px_to_um;
+                ym = ym * px_to_um;
+            end
+            migration(b) = sqrt(xm^2 + ym^2);
+        end
+    end
 
     if sum(valid) < minTrackLength
         continue
@@ -649,6 +670,7 @@ T_PerTrack = table( ...
     avg_angle(:), ...
     avg_v_tumble(:), ...
     avg_vel(:), ...
+    migration(:), ...
     'VariableNames', { ...
         'TrackID', ...
         'TumbleCount', ...
@@ -658,7 +680,8 @@ T_PerTrack = table( ...
         'MeanRunDuration_s', ...
         'MeanTumbleAngle_deg', ...
         'MeanTumbleSpeed_um_per_s', ...
-        'MeanRunSpeed_um_per_s' ...
+        'MeanRunSpeed_um_per_s', ...
+        'Migration_um' ...
     });
 
 % ---- Build Metadata summary-statistics table ----
@@ -677,14 +700,15 @@ aa_vec   = avg_angle(~isnan(avg_angle));                % already NaN when 0 tum
 vt_vec   = avg_v_tumble(~isnan(avg_v_tumble));          % already NaN when 0 tumbles
 vr_vec   = avg_vel(~isnan(avg_vel));
 dur_vec  = track_duration_s(~isnan(track_duration_s));
+mig_vec  = migration(~isnan(migration));
 
 stat_fns  = {@mean, @median, @std, @var};
 stat_names = {'Mean', 'Median', 'StdDev', 'Variance'};
 
-meta_vals = zeros(4, 8);
-vecs = {nt_vec, tf_vec, att_vec, art_vec, aa_vec, vt_vec, vr_vec, dur_vec};
+meta_vals = zeros(4, 9);
+vecs = {nt_vec, tf_vec, att_vec, art_vec, aa_vec, vt_vec, vr_vec, dur_vec, mig_vec};
 for s = 1 : 4
-    for c = 1 : 8
+    for c = 1 : 9
         if isempty(vecs{c})
             meta_vals(s, c) = NaN;
         else
@@ -703,7 +727,8 @@ T_Meta = array2table(meta_vals, ...
         'TumbleAngle_deg', ...
         'TumbleLinearSpeed_um_per_s', ...
         'RunLinearSpeed_um_per_s', ...
-        'TrackDuration_s' ...
+        'TrackDuration_s', ...
+        'Migration_um' ...
     });
 
 % ---- Write to Excel ----
@@ -729,6 +754,7 @@ vt_plot   = avg_v_tumble(~isnan(avg_v_tumble)); % translational speed during tum
 wr_plot   = avg_w_run(~isnan(avg_w_run));       % angular velocity during runs
 wt_plot   = avg_w_tumble(~isnan(avg_w_tumble)); % angular velocity during tumbles
 tf_plot   = tumble_freq(~isnan(tumble_freq));   % tumbles per second
+mig_plot  = migration(~isnan(migration));        % net displacement over first second (µm)
 
 % ---- Population-level summary statistics ----
 pop_mean_nt  = mean(nt_plot);    pop_med_nt  = median(nt_plot);
@@ -741,6 +767,7 @@ pop_mean_vt  = mean(vt_plot);    pop_med_vt  = median(vt_plot);
 pop_mean_wr  = mean(wr_plot);    pop_med_wr  = median(wr_plot);
 pop_mean_wt  = mean(wt_plot);    pop_med_wt  = median(wt_plot);
 pop_mean_tf  = mean(tf_plot);    pop_med_tf  = median(tf_plot);
+pop_mean_mig = mean(mig_plot);   pop_med_mig = median(mig_plot);
 
 % ---- Print summary table ----
 fprintf('\n');
@@ -756,18 +783,21 @@ fprintf('%-35s   %10.2f   %10.2f\n', 'Run duration (s)',           pop_mean_art,
 fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble angle (deg)',         pop_mean_aa,  pop_med_aa);
 fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble linear speed (µm/s)', pop_mean_vt,  pop_med_vt);
 fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)',    pop_mean_vr,  pop_med_vr);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Track duration (s)',         mean(dur_plot), median(dur_plot));
+fprintf('%-35s   %10.2f   %10.2f\n', 'Migration (µm)',             pop_mean_mig, pop_med_mig);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Track duration (s)',         pop_mean_dur, pop_med_dur);
 fprintf('=====================================================================\n\n');
 
-% ---- Histogram panels ----
-figure('Units','inches', 'Position',[1 1 18 8], 'Color','white');
+% ---- Histogram panels (2 rows × 4 cols = 8 panels) ----
+figure('Units','inches', 'Position',[1 1 22 9], 'Color','white');
 
-subplot(2,3,1); smart_histogram(nt_plot,  pop_mean_nt,  'Number of Tumbles',    'Tumble Count',        dodgerblue, avgline, true);
-subplot(2,3,2); smart_histogram(att_plot, pop_mean_att, 'Tumble Duration (s)',   'Tumble Duration',     dodgerblue, avgline, false);
-subplot(2,3,3); smart_histogram(art_plot, pop_mean_art, 'Run Duration (s)',      'Run Duration',        dodgerblue, avgline, false);
-subplot(2,3,4); smart_histogram(aa_plot,  pop_mean_aa,  'Tumble Angle (deg)',    'Tumble Angle',        dodgerblue, avgline, false);
-subplot(2,3,5); smart_histogram(vt_plot,  pop_mean_vt,  'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
-subplot(2,3,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
+subplot(2,4,1); smart_histogram(nt_plot,  pop_mean_nt,  'Number of Tumbles',     'Tumble Count',        dodgerblue, avgline, true);
+subplot(2,4,2); smart_histogram(att_plot, pop_mean_att, 'Tumble Duration (s)',    'Tumble Duration',     dodgerblue, avgline, false);
+subplot(2,4,3); smart_histogram(art_plot, pop_mean_art, 'Run Duration (s)',       'Run Duration',        dodgerblue, avgline, false);
+subplot(2,4,4); smart_histogram(aa_plot,  pop_mean_aa,  'Tumble Angle (deg)',     'Tumble Angle',        dodgerblue, avgline, false);
+subplot(2,4,5); smart_histogram(vt_plot,  pop_mean_vt,  'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
+subplot(2,4,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
+subplot(2,4,7); smart_histogram(mig_plot, pop_mean_mig, 'Migration (\mum)',      'Migration',           dodgerblue, avgline, false);
+subplot(2,4,8); smart_histogram(dur_plot, pop_mean_dur, 'Track Duration (s)',    'Track Duration',      dodgerblue, avgline, false);
 
 % ---- Tumble frequency scatter plot ----
 % Each dot = one bacterium. x = tumbles/s, y = total track duration.
@@ -862,6 +892,22 @@ end
 function val = clip(x)
 % Clamp x to [-1, 1] to guard against floating-point errors in acos
     val = max(-1, min(1, x));
+end
+
+function y = movmedian_nan_col(x, w)
+% NaN-safe moving median over a column vector, window width w.
+    n  = numel(x);
+    y  = nan(size(x));
+    hw = floor(w / 2);
+    for i = 1 : n
+        a  = max(1, i - hw);
+        b  = min(n, i + hw);
+        xi = x(a:b);
+        xi = xi(~isnan(xi));
+        if ~isempty(xi)
+            y(i) = median(xi);
+        end
+    end
 end
 
 function angle = compute_angle(diy, doy, iphi, ophi)
