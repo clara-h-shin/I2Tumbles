@@ -156,6 +156,7 @@
 %   June 23, 2020: Delete size-finding algorithms. See previous versions,
 %   or "Deleted domain segmentation code"
 % Last modified: June 23, 2020
+%
 
 function [objs] = fo5_rp(img, processopt, processparam, thresh, fitstr, ...
     try1pernhood, nhoodctrs, lsqoptions, dimg)

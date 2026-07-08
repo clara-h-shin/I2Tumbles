@@ -29,6 +29,7 @@
 % July 10, 2012
 % last modified July 13, 2012
 
+
 function I_grvote = gradientvote(I, objsize, graddir, grthresh)
 
 

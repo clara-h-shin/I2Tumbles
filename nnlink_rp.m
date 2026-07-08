@@ -29,7 +29,7 @@ function objs = nnlink_rp(objs, step, memory, dispopt, diagnostic)
 % July 10, 2016: Fixing memory, yet again! (Actually fine, but change 
 %      default to zero (no memory), and properly comment)
 % last modified June 23, 2020 (minor formatting changes)
-
+%
 
 if ~exist('step', 'var') || isempty(step)
     step = Inf;

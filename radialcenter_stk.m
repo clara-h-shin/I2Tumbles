@@ -68,7 +68,7 @@
 %   General Public License for more details.
 %   You should have received a copy of the GNU General Public License 
 %   (gpl.txt) along with this program.  If not, see <http://www.gnu.org/licenses/>.
-%%
+%
 
 function [xc, yc, sigma, meand2] = radialcenter_stk(I)
 

@@ -41,8 +41,7 @@ function res = bpass(arr,lnoise,lobject)
 % ;       This code 'bpass.pro' is copyright 1997, John C. Crocker and 
 % ;       David G. Grier.  It should be considered 'freeware'- and may be
 % ;       distributed freely in its original form when properly attributed.
-% 
-%   
+
 
   b = double(lnoise);
   w = round(lobject);

@@ -61,6 +61,7 @@
 %       (options 1 and 2); should return empty x, y arrays
 %
 % Last modified: Sept. 27, 2019
+%
 
 function [y, x] = calcthreshpts(A, threshopt, thresh, nsize, try1pernhood, dimg)
 

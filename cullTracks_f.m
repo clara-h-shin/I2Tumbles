@@ -1,5 +1,5 @@
 % cullTracks_f.m
-% Modified by Clara Shin Nov 21, 2025
+% Modified by Clara Shin on Nov 21, 2025
 
 function objs_out = cullTracks_f(objs, cullString, cullThrash)
     

@@ -10,7 +10,7 @@
 % Author:   Brandon Schlomann
 %
 % Date:     5/12/16 - first written
-%
+
 
 function [xmat,ymat] = objs2pos(objs)
 

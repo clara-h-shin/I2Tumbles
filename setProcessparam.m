@@ -1,7 +1,7 @@
 function [processparam, graddir]=setProcessparam(processopt, processparam, ...
                                         bpfiltsize, nsize, graddiroptval, ...
                                         grobjsize, defaultgrthresh)
-
+%
 % Set processparam, graddiroptval, graddir based on process option
 graddir = 0;
 switch processopt
