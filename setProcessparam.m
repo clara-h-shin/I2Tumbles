@@ -1,3 +1,6 @@
+% Last updated: 5/22/2026
+% By Clara Shin
+
 function [processparam, graddir]=setProcessparam(processopt, processparam, ...
                                         bpfiltsize, nsize, graddiroptval, ...
                                         grobjsize, defaultgrthresh)

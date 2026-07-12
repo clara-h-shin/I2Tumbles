@@ -12,7 +12,7 @@
 % < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
 % ^ If you want to perform statistical testing. 
 
-% Last updated: 7/2/2026
+% Last updated: 7/11/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -49,7 +49,10 @@ w_confirm_factor  = 0.20;
 min_tumble_speed  = 3.0;                    
 
 % --- Scatter plot: show bacteria IDs next to each dot ---
-show_scatter_labels = true;               % true = annotate each dot with its TrackID
+show_scatter_labels = false;               % true = annotate each dot with its TrackID
+
+% --- Display toggle: set to false to skip all histograms and scatter plot ---
+show_plots = true;
 
 %% =========================================================
 %  Load simpletracking output data
@@ -120,7 +123,10 @@ avg_v_tumble      = NaN(1, Nbacteria);   % avg translational speed during tumble
 avg_w_run         = NaN(1, Nbacteria);   % avg angular velocity during runs (rad/s)
 avg_w_tumble      = NaN(1, Nbacteria);   % avg angular velocity during tumbles (rad/s)
 track_duration_s  = NaN(1, Nbacteria);   % total track duration in seconds
-migration         = NaN(1, Nbacteria);   % net displacement over first second (µm)
+firstsec_disp     = NaN(1, Nbacteria);   % first-second displacement (µm); 0 if track < 0.5s
+total_migration   = NaN(1, Nbacteria);   % total displacement start→end (µm)
+first_sec_speed   = NaN(1, Nbacteria);   % average speed over first second (µm/s)
+avg_vel_total     = NaN(1, Nbacteria);   % mean speed over all frames (run + tumble) (µm/s)
 
 %% =========================================================
 %  Bacterium metrics (translational velocity and angular velocity)
@@ -133,24 +139,58 @@ for b = 1 : Nbacteria
     y_col = ymat(:, b);
     valid = ~isnan(x_col) & ~isnan(y_col);
 
-    % ---- Migration
-    nFrames1s_mig = max(1, round(numFrames / secondVideo));
+    % ---- First-second displacement, first-second speed, total migration ----
+    % All computed before any continue so every bacterium gets a value.
+    % Uses NaN-safe moving median (window=3) to smooth centroid jitter,
+    % matching migration_v3.m's x_use/y_use approach.
+    nFrames1s_mig   = max(1, round(numFrames / secondVideo));
+    nFrames_half_s  = round(0.5 * numFrames / secondVideo);  % frames in 0.5 s
     x_sm = movmedian_nan_col(x_col, 3);
     y_sm = movmedian_nan_col(y_col, 3);
     valid_idx_mig = find(~isnan(x_sm) & ~isnan(y_sm));
+
     if numel(valid_idx_mig) >= 2
         idx_start_mig  = valid_idx_mig(1);
         idx_end_target = idx_start_mig + nFrames1s_mig;
         idx_within_mig = valid_idx_mig(valid_idx_mig <= idx_end_target);
-        if numel(idx_within_mig) >= 2
+        n_within       = numel(idx_within_mig);
+        elapsed_frames = idx_within_mig(end) - idx_within_mig(1);  % frame span
+
+        % First-second displacement: only if track spans >= 0.5 s
+        if n_within >= 2 && elapsed_frames >= nFrames_half_s
             xm = x_sm(idx_within_mig(end)) - x_sm(idx_within_mig(1));
             ym = y_sm(idx_within_mig(end)) - y_sm(idx_within_mig(1));
+            if convert_to_um, xm = xm * px_to_um; ym = ym * px_to_um; end
+            firstsec_disp(b) = sqrt(xm^2 + ym^2);
+
+            % First-second speed: total path length / elapsed time
+            xs_win = x_sm(idx_within_mig);
+            ys_win = y_sm(idx_within_mig);
             if convert_to_um
-                xm = xm * px_to_um;
-                ym = ym * px_to_um;
+                xs_win = xs_win * px_to_um;
+                ys_win = ys_win * px_to_um;
             end
-            migration(b) = sqrt(xm^2 + ym^2);
+            path_len  = sum(sqrt(diff(xs_win).^2 + diff(ys_win).^2));
+            elapsed_s = elapsed_frames * time_int;
+            if elapsed_s > 0
+                first_sec_speed(b) = path_len / elapsed_s;
+            end
         end
+        % tracks < 0.5 s: firstsec_disp stays NaN (leave as 0 per spec)
+        if isnan(firstsec_disp(b)) && numel(valid_idx_mig) >= 2
+            firstsec_disp(b) = 0;
+        end
+
+        % Total migration: straight-line displacement across entire track
+        x_all = x_sm(valid_idx_mig);
+        y_all = y_sm(valid_idx_mig);
+        if convert_to_um
+            x_all = x_all * px_to_um;
+            y_all = y_all * px_to_um;
+        end
+        dx_tot = x_all(end) - x_all(1);
+        dy_tot = y_all(end) - y_all(1);
+        total_migration(b) = sqrt(dx_tot^2 + dy_tot^2);
     end
 
     if sum(valid) < minTrackLength
@@ -592,6 +632,10 @@ for b = 1 : Nbacteria
         avg_w_run(b)  = mean(sg_w(run_frames), 'omitnan');
     end
 
+    % Total linear speed: mean of sg_v over ALL frames (run + tumble).
+    % Consistent with avg_vel and avg_v_tumble since all three come from sg_v.
+    avg_vel_total(b) = mean(sg_v, 'omitnan');
+
     % Track duration = number of valid frames * time_int
     track_duration_s(b) = sum(valid) * time_int;
 
@@ -670,7 +714,10 @@ T_PerTrack = table( ...
     avg_angle(:), ...
     avg_v_tumble(:), ...
     avg_vel(:), ...
-    migration(:), ...
+    avg_vel_total(:), ...
+    firstsec_disp(:), ...
+    total_migration(:), ...
+    first_sec_speed(:), ...
     'VariableNames', { ...
         'TrackID', ...
         'TumbleCount', ...
@@ -681,6 +728,9 @@ T_PerTrack = table( ...
         'MeanTumbleAngle_deg', ...
         'MeanTumbleSpeed_um_per_s', ...
         'MeanRunSpeed_um_per_s', ...
+        'TotalLinearSpeed_um_per_s', ...
+        'FirstSecondDisplacement_um', ...
+        'FirstSecondSpeed_um_per_s', ...
         'Migration_um' ...
     });
 
@@ -694,26 +744,38 @@ T_PerTrack = table( ...
 
 nt_vec   = num_tumbles(~isnan(num_tumbles));
 tf_vec   = tumble_freq(~isnan(tumble_freq));
-att_vec  = avg_tumble_t(~isnan(avg_tumble_t));          % already NaN when 0 tumbles
+att_vec  = avg_tumble_t(~isnan(avg_tumble_t));
 art_vec  = mean_run_dur(~isnan(mean_run_dur));
-aa_vec   = avg_angle(~isnan(avg_angle));                % already NaN when 0 tumbles
-vt_vec   = avg_v_tumble(~isnan(avg_v_tumble));          % already NaN when 0 tumbles
+aa_vec   = avg_angle(~isnan(avg_angle));
+vt_vec   = avg_v_tumble(~isnan(avg_v_tumble));
 vr_vec   = avg_vel(~isnan(avg_vel));
+vall_vec = avg_vel_total(~isnan(avg_vel_total));
 dur_vec  = track_duration_s(~isnan(track_duration_s));
-mig_vec  = migration(~isnan(migration));
+fsd_vec  = firstsec_disp(firstsec_disp > 0 & ~isnan(firstsec_disp));
+tmig_vec = total_migration(~isnan(total_migration));
+spd_vec  = first_sec_speed(~isnan(first_sec_speed));
 
 stat_fns  = {@mean, @median, @std, @var};
-stat_names = {'Mean', 'Median', 'StdDev', 'Variance'};
+stat_names = {'Mean', 'Median', 'StdDev', 'Variance', 'SEM'};
 
-meta_vals = zeros(4, 9);
-vecs = {nt_vec, tf_vec, att_vec, art_vec, aa_vec, vt_vec, vr_vec, dur_vec, mig_vec};
+Ncols = 12;
+meta_vals = zeros(5, Ncols);
+vecs = {nt_vec, tf_vec, att_vec, art_vec, aa_vec, vt_vec, vr_vec, vall_vec, dur_vec, fsd_vec, tmig_vec, spd_vec};
 for s = 1 : 4
-    for c = 1 : 9
+    for c = 1 : Ncols
         if isempty(vecs{c})
             meta_vals(s, c) = NaN;
         else
             meta_vals(s, c) = stat_fns{s}(vecs{c});
         end
+    end
+end
+% SEM = std / sqrt(N)
+for c = 1 : Ncols
+    if isempty(vecs{c}) || numel(vecs{c}) < 2
+        meta_vals(5, c) = NaN;
+    else
+        meta_vals(5, c) = std(vecs{c}) / sqrt(numel(vecs{c}));
     end
 end
 
@@ -727,7 +789,10 @@ T_Meta = array2table(meta_vals, ...
         'TumbleAngle_deg', ...
         'TumbleLinearSpeed_um_per_s', ...
         'RunLinearSpeed_um_per_s', ...
+        'TotalLinearSpeed_um_per_s', ...
         'TrackDuration_s', ...
+        'FirstSecondDisplacement_um', ...
+        'FirstSecondSpeed_um_per_s', ...
         'Migration_um' ...
     });
 
@@ -746,28 +811,28 @@ avgline    = [0.85, 0.10, 0.10];
 
 nt_plot   = num_tumbles(~isnan(num_tumbles));
 att_plot  = avg_tumble_t(~isnan(avg_tumble_t));
-art_plot  = mean_run_dur(~isnan(mean_run_dur)); % uses filled values (0-tumble → TrackDuration_s)
+art_plot  = mean_run_dur(~isnan(mean_run_dur));
 aa_plot   = avg_angle(~isnan(avg_angle));
 dur_plot  = track_duration_s(~isnan(track_duration_s));
-vr_plot   = avg_vel(~isnan(avg_vel));           % translational speed during runs
-vt_plot   = avg_v_tumble(~isnan(avg_v_tumble)); % translational speed during tumbles
-wr_plot   = avg_w_run(~isnan(avg_w_run));       % angular velocity during runs
-wt_plot   = avg_w_tumble(~isnan(avg_w_tumble)); % angular velocity during tumbles
-tf_plot   = tumble_freq(~isnan(tumble_freq));   % tumbles per second
-mig_plot  = migration(~isnan(migration));        % net displacement over first second (µm)
+vr_plot   = avg_vel(~isnan(avg_vel));
+vt_plot   = avg_v_tumble(~isnan(avg_v_tumble));
+wr_plot   = avg_w_run(~isnan(avg_w_run));
+wt_plot   = avg_w_tumble(~isnan(avg_w_tumble));
+tf_plot   = tumble_freq(~isnan(tumble_freq));
+tmig_plot = total_migration(~isnan(total_migration));
 
 % ---- Population-level summary statistics ----
-pop_mean_nt  = mean(nt_plot);    pop_med_nt  = median(nt_plot);
-pop_mean_att = mean(att_plot);   pop_med_att = median(att_plot);
-pop_mean_art = mean(art_plot);   pop_med_art = median(art_plot);
-pop_mean_aa  = mean(aa_plot);    pop_med_aa  = median(aa_plot);
-pop_mean_dur = mean(dur_plot);   pop_med_dur = median(dur_plot);
-pop_mean_vr  = mean(vr_plot);    pop_med_vr  = median(vr_plot);
-pop_mean_vt  = mean(vt_plot);    pop_med_vt  = median(vt_plot);
-pop_mean_wr  = mean(wr_plot);    pop_med_wr  = median(wr_plot);
-pop_mean_wt  = mean(wt_plot);    pop_med_wt  = median(wt_plot);
-pop_mean_tf  = mean(tf_plot);    pop_med_tf  = median(tf_plot);
-pop_mean_mig = mean(mig_plot);   pop_med_mig = median(mig_plot);
+pop_mean_nt   = mean(nt_plot);    pop_med_nt   = median(nt_plot);
+pop_mean_att  = mean(att_plot);   pop_med_att  = median(att_plot);
+pop_mean_art  = mean(art_plot);   pop_med_art  = median(art_plot);
+pop_mean_aa   = mean(aa_plot);    pop_med_aa   = median(aa_plot);
+pop_mean_dur  = mean(dur_plot);   pop_med_dur  = median(dur_plot);
+pop_mean_vr   = mean(vr_plot);    pop_med_vr   = median(vr_plot);
+pop_mean_vt   = mean(vt_plot);    pop_med_vt   = median(vt_plot);
+pop_mean_wr   = mean(wr_plot);    pop_med_wr   = median(wr_plot);
+pop_mean_wt   = mean(wt_plot);    pop_med_wt   = median(wt_plot);
+pop_mean_tf   = mean(tf_plot);    pop_med_tf   = median(tf_plot);
+pop_mean_tmig = mean(tmig_plot);  pop_med_tmig = median(tmig_plot);
 
 % ---- Print summary table ----
 fprintf('\n');
@@ -776,37 +841,36 @@ fprintf('          Population Summary  (N = %d bacteria analysed)\n', length(nt_
 fprintf('=====================================================================\n');
 fprintf('%-35s   %10s   %10s\n', 'Metric', 'Mean', 'Median');
 fprintf('---------------------------------------------------------------------\n');
-fprintf('%-35s   %10.2f   %10.2f\n', 'Number of tumbles',          pop_mean_nt,  pop_med_nt);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumbles per second (1/s)',   pop_mean_tf,  pop_med_tf);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble duration (s)',        pop_mean_att, pop_med_att);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Run duration (s)',           pop_mean_art, pop_med_art);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble angle (deg)',         pop_mean_aa,  pop_med_aa);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble linear speed (µm/s)', pop_mean_vt,  pop_med_vt);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)',    pop_mean_vr,  pop_med_vr);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Migration (µm)',             pop_mean_mig, pop_med_mig);
-fprintf('%-35s   %10.2f   %10.2f\n', 'Track duration (s)',         pop_mean_dur, pop_med_dur);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Number of tumbles',          pop_mean_nt,   pop_med_nt);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumbles per second (1/s)',   pop_mean_tf,   pop_med_tf);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble duration (s)',        pop_mean_att,  pop_med_att);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Run duration (s)',           pop_mean_art,  pop_med_art);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble angle (deg)',         pop_mean_aa,   pop_med_aa);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble linear speed (µm/s)', pop_mean_vt,   pop_med_vt);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)',    pop_mean_vr,   pop_med_vr);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Migration (µm)',             pop_mean_tmig, pop_med_tmig);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Track duration (s)',         pop_mean_dur,  pop_med_dur);
 fprintf('=====================================================================\n\n');
+
+if show_plots
 
 % ---- Histogram panels (2 rows × 4 cols = 8 panels) ----
 figure('Units','inches', 'Position',[1 1 22 9], 'Color','white');
 
-subplot(2,4,1); smart_histogram(nt_plot,  pop_mean_nt,  'Number of Tumbles',     'Tumble Count',        dodgerblue, avgline, true);
-subplot(2,4,2); smart_histogram(att_plot, pop_mean_att, 'Tumble Duration (s)',    'Tumble Duration',     dodgerblue, avgline, false);
-subplot(2,4,3); smart_histogram(art_plot, pop_mean_art, 'Run Duration (s)',       'Run Duration',        dodgerblue, avgline, false);
-subplot(2,4,4); smart_histogram(aa_plot,  pop_mean_aa,  'Tumble Angle (deg)',     'Tumble Angle',        dodgerblue, avgline, false);
-subplot(2,4,5); smart_histogram(vt_plot,  pop_mean_vt,  'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
-subplot(2,4,6); smart_histogram(vr_plot,  pop_mean_vr,  'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
-subplot(2,4,7); smart_histogram(mig_plot, pop_mean_mig, 'Migration (\mum)',      'Migration',           dodgerblue, avgline, false);
-subplot(2,4,8); smart_histogram(dur_plot, pop_mean_dur, 'Track Duration (s)',    'Track Duration',      dodgerblue, avgline, false);
+subplot(2,4,1); smart_histogram(nt_plot,   pop_mean_nt,   'Number of Tumbles',     'Tumble Count',        dodgerblue, avgline, true);
+subplot(2,4,2); smart_histogram(att_plot,  pop_mean_att,  'Tumble Duration (s)',    'Tumble Duration',     dodgerblue, avgline, false);
+subplot(2,4,3); smart_histogram(art_plot,  pop_mean_art,  'Run Duration (s)',       'Run Duration',        dodgerblue, avgline, false);
+subplot(2,4,4); smart_histogram(aa_plot,   pop_mean_aa,   'Tumble Angle (deg)',     'Tumble Angle',        dodgerblue, avgline, false);
+subplot(2,4,5); smart_histogram(vt_plot,   pop_mean_vt,   'Tumble Speed (\mum/s)', 'Tumble Linear Speed', dodgerblue, avgline, false);
+subplot(2,4,6); smart_histogram(vr_plot,   pop_mean_vr,   'Run Speed (\mum/s)',    'Run Linear Speed',    dodgerblue, avgline, false);
+subplot(2,4,7); smart_histogram(tmig_plot, pop_mean_tmig, 'Migration (\mum)',      'Migration',           dodgerblue, avgline, false);
+subplot(2,4,8); smart_histogram(dur_plot,  pop_mean_dur,  'Track Duration (s)',    'Track Duration',      dodgerblue, avgline, false);
 
 % ---- Tumble frequency scatter plot ----
-% Each dot = one bacterium. x = tumbles/s, y = total track duration.
-% Only plot bacteria that have both values defined.
 scatter_mask = ~isnan(tumble_freq) & ~isnan(track_duration_s);
 x_sc    = tumble_freq(scatter_mask);
 y_sc    = track_duration_s(scatter_mask);
-ids_sc  = find(scatter_mask);   % sequential 1-based IDs, same as TrackID in Excel
-                                % = bacteria_idx in PlotTrajectory.m
+ids_sc  = find(scatter_mask);
 
 figure('Units','inches', 'Position',[1 1 7 6], 'Color','white');
 scatter(x_sc, y_sc, 40, dodgerblue, 'filled', 'MarkerFaceAlpha', 0.6);
@@ -816,7 +880,7 @@ xline(pop_mean_tf, '--', 'Color', avgline, 'LineWidth', 1.5, ...
     'LabelOrientation', 'horizontal', 'FontSize', 10);
 
 if show_scatter_labels
-    x_pad_lbl = (max(x_sc) - min(x_sc)) * 0.012;   % small horizontal nudge
+    x_pad_lbl = (max(x_sc) - min(x_sc)) * 0.012;
     for i = 1 : numel(x_sc)
         text(x_sc(i) + x_pad_lbl, y_sc(i), num2str(ids_sc(i)), ...
             'FontSize', 8, 'Color', [0.2 0.2 0.2], ...
@@ -830,14 +894,13 @@ ylabel('Track Duration (s)',       'FontSize', 14);
 title('Tumble Frequency vs Track Duration', 'FontSize', 14);
 set(gca, 'FontSize', 12, 'TickDir', 'in', 'Box', 'on');
 
-% Padding on both axes so no dot touches the box edge.
-% x left-edge: use a fixed fraction of the data range so zero-valued dots
-% have breathing room and don't pile up against the y axis.
 x_pad = (max(x_sc) - min(x_sc)) * 0.05;
 y_pad = (max(y_sc) - min(y_sc)) * 0.05;
-x_left_pad = max(x_pad, max(x_sc) * 0.08);  % at least 8% of the max value
+x_left_pad = max(x_pad, max(x_sc) * 0.08);
 xlim([min(x_sc) - x_left_pad,  max(x_sc) + x_pad]);
 ylim([max(0, min(y_sc) - y_pad),  max(y_sc) + y_pad]);
+
+end   % end show_plots
 
 
 %% =========================================================
