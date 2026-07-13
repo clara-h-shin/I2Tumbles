@@ -12,7 +12,7 @@
 % < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
 % ^ If you want to perform statistical testing. 
 
-% Last updated: 7/11/2026
+% Last updated: 7/13/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -228,6 +228,11 @@ for b = 1 : Nbacteria
     % ---- Savitzky-Golay filtering ----
     sg_v = sgolayfilt(v_out, sg_poly, sg_window);
     sg_w = sgolayfilt(w_out, sg_poly, sg_window);
+
+    % Total linear speed: mean of sg_v over ALL frames (run + tumble + no-tumble).
+    % Computed here so it is populated even for bacteria that exit tumble
+    % detection early (0 tumbles, angular confirmation failure, etc.).
+    avg_vel_total(b) = mean(sg_v, 'omitnan');
 
     % ---- Store trajectory arrays ----
     t_x_mat{b}        = x_out;
@@ -632,10 +637,6 @@ for b = 1 : Nbacteria
         avg_w_run(b)  = mean(sg_w(run_frames), 'omitnan');
     end
 
-    % Total linear speed: mean of sg_v over ALL frames (run + tumble).
-    % Consistent with avg_vel and avg_v_tumble since all three come from sg_v.
-    avg_vel_total(b) = mean(sg_v, 'omitnan');
-
     % Track duration = number of valid frames * time_int
     track_duration_s(b) = sum(valid) * time_int;
 
@@ -703,6 +704,24 @@ end
 %      NaN when num_tumbles == 0 (already the default — no change needed).
 %      When num_tumbles >= 1, the values were computed in the loop.         ----
 
+% ---- Shared filtered vectors ----
+% Defined once here and reused identically for T_PerTrack, Metadata,
+% printout, and histograms — guaranteeing all outputs are consistent.
+nt_plot   = num_tumbles(~isnan(num_tumbles));
+tf_plot   = tumble_freq(~isnan(tumble_freq));
+att_plot  = avg_tumble_t(~isnan(avg_tumble_t));
+art_plot  = mean_run_dur(~isnan(mean_run_dur));
+aa_plot   = avg_angle(~isnan(avg_angle));
+vt_plot   = avg_v_tumble(~isnan(avg_v_tumble));
+vr_plot   = avg_vel(~isnan(avg_vel));
+vall_plot = avg_vel_total(~isnan(avg_vel_total));
+wr_plot   = avg_w_run(~isnan(avg_w_run));
+wt_plot   = avg_w_tumble(~isnan(avg_w_tumble));
+dur_plot  = track_duration_s(~isnan(track_duration_s));
+fsd_plot  = firstsec_disp(firstsec_disp > 0 & ~isnan(firstsec_disp));
+tmig_plot = total_migration(~isnan(total_migration));
+spd_plot  = first_sec_speed(~isnan(first_sec_speed));
+
 % ---- Build per-track table ----
 T_PerTrack = table( ...
     (1:Nbacteria)', ...
@@ -730,37 +749,20 @@ T_PerTrack = table( ...
         'MeanRunSpeed_um_per_s', ...
         'TotalLinearSpeed_um_per_s', ...
         'FirstSecondDisplacement_um', ...
-        'FirstSecondSpeed_um_per_s', ...
-        'Migration_um' ...
+        'Migration_um', ...
+        'FirstSecondSpeed_um_per_s' ...
     });
 
 % ---- Build Metadata summary-statistics table ----
-% Rows: Mean, Median, Std, Variance.
-% Columns: one per population metric.
-% Filtering rules (must mirror the histogram / fprintf section below):
-%   - num_tumbles, tumble_freq, track_duration_s: all non-NaN bacteria
-%   - avg_tumble_t, avg_angle, avg_v_tumble:      only bacteria with >= 1 tumble
-%   - avg_run_t (mean_run_dur), avg_vel:           all non-NaN bacteria
-
-nt_vec   = num_tumbles(~isnan(num_tumbles));
-tf_vec   = tumble_freq(~isnan(tumble_freq));
-att_vec  = avg_tumble_t(~isnan(avg_tumble_t));
-art_vec  = mean_run_dur(~isnan(mean_run_dur));
-aa_vec   = avg_angle(~isnan(avg_angle));
-vt_vec   = avg_v_tumble(~isnan(avg_v_tumble));
-vr_vec   = avg_vel(~isnan(avg_vel));
-vall_vec = avg_vel_total(~isnan(avg_vel_total));
-dur_vec  = track_duration_s(~isnan(track_duration_s));
-fsd_vec  = firstsec_disp(firstsec_disp > 0 & ~isnan(firstsec_disp));
-tmig_vec = total_migration(~isnan(total_migration));
-spd_vec  = first_sec_speed(~isnan(first_sec_speed));
+% Uses the same _plot vectors defined above → guaranteed consistent with
+% printout and histograms.
+vecs = {nt_plot, tf_plot, att_plot, art_plot, aa_plot, vt_plot, vr_plot, vall_plot, dur_plot, fsd_plot, tmig_plot, spd_plot};
 
 stat_fns  = {@mean, @median, @std, @var};
 stat_names = {'Mean', 'Median', 'StdDev', 'Variance', 'SEM'};
 
 Ncols = 12;
 meta_vals = zeros(5, Ncols);
-vecs = {nt_vec, tf_vec, att_vec, art_vec, aa_vec, vt_vec, vr_vec, vall_vec, dur_vec, fsd_vec, tmig_vec, spd_vec};
 for s = 1 : 4
     for c = 1 : Ncols
         if isempty(vecs{c})
@@ -792,8 +794,8 @@ T_Meta = array2table(meta_vals, ...
         'TotalLinearSpeed_um_per_s', ...
         'TrackDuration_s', ...
         'FirstSecondDisplacement_um', ...
-        'FirstSecondSpeed_um_per_s', ...
-        'Migration_um' ...
+        'Migration_um', ...
+        'FirstSecondSpeed_um_per_s' ...
     });
 
 % ---- Write to Excel ----
@@ -809,17 +811,7 @@ fprintf('Excel saved → %s\n', outFile);
 dodgerblue = [0.118, 0.565, 1.000];
 avgline    = [0.85, 0.10, 0.10];
 
-nt_plot   = num_tumbles(~isnan(num_tumbles));
-att_plot  = avg_tumble_t(~isnan(avg_tumble_t));
-art_plot  = mean_run_dur(~isnan(mean_run_dur));
-aa_plot   = avg_angle(~isnan(avg_angle));
-dur_plot  = track_duration_s(~isnan(track_duration_s));
-vr_plot   = avg_vel(~isnan(avg_vel));
-vt_plot   = avg_v_tumble(~isnan(avg_v_tumble));
-wr_plot   = avg_w_run(~isnan(avg_w_run));
-wt_plot   = avg_w_tumble(~isnan(avg_w_tumble));
-tf_plot   = tumble_freq(~isnan(tumble_freq));
-tmig_plot = total_migration(~isnan(total_migration));
+% (shared _plot vectors already defined above, before Metadata)
 
 % ---- Population-level summary statistics ----
 pop_mean_nt   = mean(nt_plot);    pop_med_nt   = median(nt_plot);
