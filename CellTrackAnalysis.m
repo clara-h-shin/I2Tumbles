@@ -52,13 +52,13 @@ min_tumble_speed  = 3.0;
 show_scatter_labels = false;               % true = annotate each dot with its TrackID
 
 % --- Display toggle: set to false to skip all histograms and scatter plot ---
-show_plots = false;
+show_plots = true;
 
 %% =========================================================
 %  Load simpletracking output data
 %  =========================================================
 
-data      = load('L-Ser_25.mat');
+data      = load('SimpleTrackingoutput.mat');
 objs_link = data.objs_link;
 
 numFrames = double(data.Nframes);
