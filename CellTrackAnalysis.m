@@ -52,13 +52,13 @@ min_tumble_speed  = 3.0;
 show_scatter_labels = false;               % true = annotate each dot with its TrackID
 
 % --- Display toggle: set to false to skip all histograms and scatter plot ---
-show_plots = true;
+show_plots = false;
 
 %% =========================================================
 %  Load simpletracking output data
 %  =========================================================
 
-data      = load('SimpleTrackingoutput.mat');
+data      = load('L-Ser_25.mat');
 objs_link = data.objs_link;
 
 numFrames = double(data.Nframes);
@@ -756,7 +756,7 @@ T_PerTrack = table( ...
 % ---- Build Metadata summary-statistics table ----
 % Uses the same _plot vectors defined above → guaranteed consistent with
 % printout and histograms.
-vecs = {nt_plot, tf_plot, att_plot, art_plot, aa_plot, vt_plot, vr_plot, vall_plot, dur_plot, fsd_plot, tmig_plot, spd_plot};
+vecs = {nt_plot, tf_plot, att_plot, art_plot, aa_plot, vt_plot, vr_plot, vall_plot, tmig_plot, dur_plot, fsd_plot, spd_plot};
 
 stat_fns  = {@mean, @median, @std, @var};
 stat_names = {'Mean', 'Median', 'StdDev', 'Variance', 'SEM'};
@@ -792,9 +792,9 @@ T_Meta = array2table(meta_vals, ...
         'TumbleLinearSpeed_um_per_s', ...
         'RunLinearSpeed_um_per_s', ...
         'TotalLinearSpeed_um_per_s', ...
+        'Migration_um', ...
         'TrackDuration_s', ...
         'FirstSecondDisplacement_um', ...
-        'Migration_um', ...
         'FirstSecondSpeed_um_per_s' ...
     });
 
@@ -810,6 +810,8 @@ fprintf('Excel saved → %s\n', outFile);
 
 dodgerblue = [0.118, 0.565, 1.000];
 avgline    = [0.85, 0.10, 0.10];
+
+% (shared _plot vectors already defined above, before Metadata)
 
 % ---- Population-level summary statistics ----
 pop_mean_nt   = mean(nt_plot);    pop_med_nt   = median(nt_plot);
