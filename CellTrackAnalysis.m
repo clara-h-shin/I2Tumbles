@@ -820,6 +820,7 @@ pop_mean_art  = mean(art_plot);   pop_med_art  = median(art_plot);
 pop_mean_aa   = mean(aa_plot);    pop_med_aa   = median(aa_plot);
 pop_mean_dur  = mean(dur_plot);   pop_med_dur  = median(dur_plot);
 pop_mean_vr   = mean(vr_plot);    pop_med_vr   = median(vr_plot);
+pop_mean_vall = mean(vall_plot);  pop_med_vall = median(vall_plot);
 pop_mean_vt   = mean(vt_plot);    pop_med_vt   = median(vt_plot);
 pop_mean_wr   = mean(wr_plot);    pop_med_wr   = median(wr_plot);
 pop_mean_wt   = mean(wt_plot);    pop_med_wt   = median(wt_plot);
@@ -840,6 +841,7 @@ fprintf('%-35s   %10.2f   %10.2f\n', 'Run duration (s)',           pop_mean_art,
 fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble angle (deg)',         pop_mean_aa,   pop_med_aa);
 fprintf('%-35s   %10.2f   %10.2f\n', 'Tumble linear speed (µm/s)', pop_mean_vt,   pop_med_vt);
 fprintf('%-35s   %10.2f   %10.2f\n', 'Run linear speed (µm/s)',    pop_mean_vr,   pop_med_vr);
+fprintf('%-35s   %10.2f   %10.2f\n', 'Total linear speed (µm/s)',  pop_mean_vall, pop_med_vall);
 fprintf('%-35s   %10.2f   %10.2f\n', 'Migration (µm)',             pop_mean_tmig, pop_med_tmig);
 fprintf('%-35s   %10.2f   %10.2f\n', 'Track duration (s)',         pop_mean_dur,  pop_med_dur);
 fprintf('=====================================================================\n\n');
